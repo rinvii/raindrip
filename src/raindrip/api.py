@@ -66,7 +66,7 @@ class RaindropAPI:
             
             if method == "DELETE":
                 return {"result": True}
-            return {"result": True, "item": {}, "items": []}
+            return {"result": True, "item": {"_id": 0, "title": "Dry Run Item", "link": "http://dryrun.com"}, "items": []}
 
         retries = self.MAX_RETRIES
         while retries > 0:
@@ -200,6 +200,11 @@ class RaindropAPI:
 
     async def upload_collection_cover(self, collection_id: int, file_path: str) -> Collection:
         """Upload a cover image for a collection."""
+        if self.dry_run:
+            rprint(f"[bold yellow][DRY RUN][/bold yellow] PUT /collection/{collection_id}/cover")
+            rprint(f"[dim]File: {file_path}[/dim]")
+            return Collection.model_validate({"_id": collection_id, "title": "Dry Run Icon"})
+
         with open(file_path, "rb") as f:
             files = {"cover": (file_path, f, "image/png")}
             # We use the client directly to handle multipart upload which _request doesn't support easily

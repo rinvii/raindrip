@@ -6,7 +6,7 @@ import time
 
 # Configuration
 # Use 'uv run' to ensure dependencies are available
-PYTHON_CMD = ["uv", "run", "python", "-m", "raindrip.main"]
+PYTHON_CMD = ["uv", "run", "python", "-m", "raindrip.main", "--format", "json"]
 ENV = os.environ.copy()
 # Ensure src is in PYTHONPATH so python -m raindrip.main works
 ENV["PYTHONPATH"] = os.path.join(os.getcwd(), "src") + os.pathsep + ENV.get("PYTHONPATH", "")

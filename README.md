@@ -5,23 +5,21 @@
 
 AI-native CLI for Raindrop.io.
 
-Designed for AI agents and automation scripts. Strict JSON output, robust error handling, and context-optimized commands.
+Designed for AI agents and automation scripts. **TOON** for maximum token efficiency, with optional JSON output for standard integrations.
 
 ## Key Features
 
-- **🤖 AI-Native:** Default JSON output and high-level `context` commands.
+- **🤖 AI-Native:** Outputs [TOON format](https://github.com/toon-format/toon) by default to save on context tokens.
+- **📊 Situation Reports:** High-level `context` command for a quick "state of the world" overview.
 - **📂 Hierarchy Support:** Create, move, and manage nested collections.
-- **🖼️ Rich Metadata:** Access domain info, cover images, and media attachments.
 - **📦 Batch Operations:** Bulk update or delete bookmarks efficiently.
-- **🔍 Smart Search:** Beautiful tables for humans, compact JSON for agents.
-- **✨ Icon Library:** Search and set collection icons from Raindrop's 10k+ library.
 
 ## Why raindrip? (AI-Native)
 
 Traditional CLIs are built for humans to read. **raindrip** is built for **agents and automation scripts** to consume.
 
-1.  **TOON-by-default:** Every command outputs strict, ultra-compact [TOON format](https://github.com/toon-format/toon) by default.
-2.  **Token Efficiency:** TOON's tabular structure saves up to 60% on tokens compared to JSON, and 80%+ compared to raw API responses.
+1.  **Tabular Efficiency:** TOON's structure handles large bookmark lists without the repetitive key-value overhead of JSON.
+2.  **Context-First:** Commands like `context` and `structure` are designed to give an LLM exactly what it needs to understand your library in one shot.
 3.  **Smart Hints:** Error messages include `"hint"` fields that tell agents exactly how to fix the issue.
 4.  **Dry Run:** Safe account management with a global `--dry-run` flag.
 
@@ -36,6 +34,7 @@ uv tool install .
 ## Quick Start
 
 1.  **Login** (Verifies token before saving)
+
     ```bash
     raindrip login
     ```
@@ -45,47 +44,38 @@ uv tool install .
     raindrip context
     ```
 
-## AI & Automation Usage
+## Usage Examples
 
 - **List Collections & Tags**
+
   ```bash
   raindrip structure
   ```
 
-- **Collection Management**
+- **Search Bookmarks**
+
   ```bash
-  raindrip collection create "Work"
-  # Search and set icons from Raindrop's 10k+ library
-  raindrip collection set-icon <id> "robot"
-  # Clean up empty collections
-  raindrip collection clean
+  # TOON (Default)
+  raindrip search "python"
+  # Beautiful table for humans
+  raindrip search "python" --pretty
+  # Standard JSON
+  raindrip search "python" --format json
   ```
 
-- **Tag Management**
+- **Collection Management**
+
   ```bash
-  raindrip tag rename "old-tag" "new-tag"
+  raindrip collection create "Research"
+  # Set icon from Raindrop's library
+  raindrip collection set-icon <id> "robot"
   ```
 
 - **Batch Operations**
+
   ```bash
   # Move bookmarks in bulk
   raindrip batch update --ids 1,2,3 '{"collection": {"$id": <target_id>}}'
-  ```
-
-*   **Search Bookmarks**
-    ```bash
-    # Ultra-compact TOON (Default)
-    raindrip search "python"
-    # Beautiful table for humans
-    raindrip search "python" --pretty
-    # Standard JSON
-    raindrip search "python" --format json
-    ```
-
-- **Smart Sorting**
-  ```bash
-  # Suggest the best folder for a bookmark
-  raindrip sort <id>
   ```
 
 - **Get Schema** (For AI system prompts)

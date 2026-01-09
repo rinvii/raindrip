@@ -2,7 +2,7 @@ import asyncio
 import json
 import os
 import httpx
-import py_toon_format as toon
+import toon_format as toon
 from enum import Enum
 from typing import List, Optional, Any
 import typer
@@ -43,16 +43,17 @@ def main(
 
 def output_data(data: Any):
     """Helper to output data in the selected format."""
-    if state.output_format == OutputFormat.toon:
-        print(toon.dumps(data))
+    # Ensure data is JSON-serializable (dicts/lists) for both formats
+    if isinstance(data, list):
+        dumped = [item.model_dump() if hasattr(item, "model_dump") else item for item in data]
+    elif hasattr(data, "model_dump"):
+        dumped = data.model_dump()
     else:
-        # Check if data is a list of models or a single model
-        if isinstance(data, list):
-            dumped = [item.model_dump() if hasattr(item, "model_dump") else item for item in data]
-        elif hasattr(data, "model_dump"):
-            dumped = data.model_dump()
-        else:
-            dumped = data
+        dumped = data
+
+    if state.output_format == OutputFormat.toon:
+        print(toon.encode(dumped))
+    else:
         print(json.dumps(dumped, indent=2))
 
 def get_authenticated_api() -> RaindropAPI:
@@ -169,11 +170,11 @@ def context():
             
             # Simplified Context Output
             context_data = {
-                "user": {"id": user.get("_id"), "name": user.get("fullName")},
-                "stats": {
+                "user": [{"id": user.get("_id"), "name": user.get("fullName")}],
+                "stats": [{
                     "total_bookmarks": next((s["count"] for s in stats if s["_id"] == 0), 0),
                     "total_collections": len(collections),
-                },
+                }],
                 "structure": {
                     "root_collections": [
                         {"id": c.id, "title": c.title, "count": c.count} 
@@ -193,7 +194,7 @@ def context():
 @app.command()
 def structure():
     """
-    Show collections and tags as JSON.
+    Show collections and tags.
     
     Example: raindrip structure
     """
@@ -201,10 +202,20 @@ def structure():
     @handle_errors
     async def run():
         try:
-            collections = await api.get_collections()
-            tags = await api.get_tags()
+            collections, tags = await asyncio.gather(
+                api.get_collections(),
+                api.get_tags()
+            )
             output_data({
-                "collections": [c.model_dump() for c in collections],
+                "collections": [
+                    {
+                        "id": c.id, 
+                        "title": c.title, 
+                        "count": c.count, 
+                        "parent_id": c.parent.get("$id") if c.parent else None,
+                        "last_update": c.lastUpdate
+                    } for c in collections
+                ],
                 "tags": tags
             })
         finally:
@@ -240,7 +251,9 @@ def schema():
 def search(
     query: str = typer.Argument("", help="Search query"), 
     collection: int = 0,
-    pretty: bool = typer.Option(False, "--pretty", "-p", help="Display results in a formatted table for humans.")
+    pretty: bool = typer.Option(False, "--pretty", "-p", help="Display results in a formatted table for humans."),
+    format: Optional[OutputFormat] = typer.Option(None, "--format", "-f", help="Output format: toon or json."),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Log actions instead of making real API requests.")
 ):
     """
     Search for bookmarks (paginated).
@@ -249,6 +262,11 @@ def search(
     raindrip search "python"
     raindrip search "tag:important" --pretty
     """
+    if format:
+        state.output_format = format
+    if dry_run:
+        state.dry_run = True
+        
     api = get_authenticated_api()
     @handle_errors
     async def run():
@@ -272,8 +290,20 @@ def search(
                 console.print(table)
                 rprint(f"\n[dim]Total results: {len(results)}[/dim]")
             else:
-                # Use output_data for machine-readable formats (JSON/TOON)
-                output_data([{"id": r.id, "title": r.title, "link": r.link} for r in results])
+                # Flatten tags and wrap in object for TOON efficiency/compatibility
+                results_data = {
+                    "items": [
+                        {
+                            "id": r.id, 
+                            "title": r.title, 
+                            "link": r.link, 
+                            "tags": ",".join(r.tags) if r.tags else "",
+                            "type": r.type or "link",
+                            "created": r.created
+                        } for r in results
+                    ]
+                }
+                output_data(results_data)
         finally:
             await cleanup_api(api)
     asyncio.run(run())
@@ -425,13 +455,20 @@ def collection_create(
     title: str,
     parent: Optional[int] = typer.Option(None, help="Parent collection ID"),
     public: Optional[bool] = typer.Option(None, help="Make collection public"),
-    view: Optional[str] = typer.Option(None, help="View style (list, simple, grid, masonry)")
+    view: Optional[str] = typer.Option(None, help="View style (list, simple, grid, masonry)"),
+    format: Optional[OutputFormat] = typer.Option(None, "--format", "-f", help="Output format: toon or json."),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Log actions instead of making real API requests.")
 ):
     """
     Create a new collection.
     
     Example: raindrip collection create "Research" --public
     """
+    if format:
+        state.output_format = format
+    if dry_run:
+        state.dry_run = True
+        
     api = get_authenticated_api()
     parent_dict = {"$id": parent} if parent is not None else None
     
@@ -620,13 +657,20 @@ def collection_cover(
 @collection_app.command("set-icon")
 def collection_set_icon(
     collection_id: int = typer.Argument(..., help="Collection ID"),
-    query: str = typer.Argument(..., help="Search query for icon (e.g. 'code', 'art')")
+    query: str = typer.Argument(..., help="Search query for icon (e.g. 'code', 'art')"),
+    format: Optional[OutputFormat] = typer.Option(None, "--format", "-f", help="Output format: toon or json."),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Log actions instead of making real API requests.")
 ):
     """
     Search for and set a collection icon using Raindrop's library.
     
     Example: raindrip collection set-icon 123 "robot"
     """
+    if format:
+        state.output_format = format
+    if dry_run:
+        state.dry_run = True
+        
     api = get_authenticated_api()
     @handle_errors
     async def run():
@@ -741,13 +785,20 @@ def tag_rename(
 def batch_update(
     ids: str = typer.Option(..., help="Comma-separated list of bookmark IDs"),
     data: str = typer.Argument(..., help="JSON patch for updates"),
-    collection: int = typer.Option(0, help="Collection ID")
+    collection: int = typer.Option(0, help="Collection ID"),
+    format: Optional[OutputFormat] = typer.Option(None, "--format", "-f", help="Output format: toon or json."),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Log actions instead of making real API requests.")
 ):
     """
     Update multiple bookmarks at once.
     
     Example: raindrip batch update --ids 1,2,3 '{"tags": ["research"]}'
     """
+    if format:
+        state.output_format = format
+    if dry_run:
+        state.dry_run = True
+        
     api = get_authenticated_api()
     @handle_errors
     async def run():
@@ -787,8 +838,9 @@ def batch_delete(
             await cleanup_api(api)
     asyncio.run(run())
 
+app.add_typer(collection_app, name="collection")
+app.add_typer(tag_app, name="tag")
+app.add_typer(batch_app, name="batch")
+
 if __name__ == "__main__":
-    app.add_typer(collection_app, name="collection")
-    app.add_typer(tag_app, name="tag")
-    app.add_typer(batch_app, name="batch")
     app()
