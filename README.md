@@ -35,6 +35,8 @@ uv tool install .
 
 1.  **Login** (Verifies token before saving)
 
+Get a test token from https://app.raindrop.io/settings/integrations
+
     ```bash
     raindrip login
     ```

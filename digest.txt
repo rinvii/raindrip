@@ -1,0 +1,2850 @@
+Directory structure:
+└── raindrip/
+    ├── README.md
+    ├── CHANGELOG.md
+    ├── data.toon
+    ├── LICENSE
+    ├── playtest.py
+    ├── pyproject.toml
+    ├── pytest.ini
+    ├── .python-version
+    ├── src/
+    │   └── raindrip/
+    │       ├── __init__.py
+    │       ├── api.py
+    │       ├── config.py
+    │       ├── main.py
+    │       └── models.py
+    ├── tests/
+    │   ├── test_api.py
+    │   ├── test_batch_operations.py
+    │   ├── test_cli.py
+    │   ├── test_collection_management.py
+    │   ├── test_edge_cases.py
+    │   ├── test_hierarchy_and_icons.py
+    │   └── test_tag_management.py
+    └── .github/
+        └── workflows/
+            ├── release.yml
+            └── test.yml
+
+================================================
+FILE: README.md
+================================================
+# raindrip 💧
+
+[![CI](https://github.com/rinvii/raindrip/actions/workflows/test.yml/badge.svg)](https://github.com/rinvii/raindrip/actions)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+AI-native CLI for Raindrop.io.
+
+Designed for AI agents and automation scripts. **TOON** for maximum token efficiency, with optional JSON output for standard integrations.
+
+## Key Features
+
+- **🤖 AI-Native:** Outputs [TOON format](https://github.com/toon-format/toon) by default to save on context tokens.
+- **📊 Situation Reports:** High-level `context` command for a quick "state of the world" overview.
+- **📂 Hierarchy Support:** Create, move, and manage nested collections.
+- **📦 Batch Operations:** Bulk update or delete bookmarks efficiently.
+
+## Why raindrip? (AI-Native)
+
+Traditional CLIs are built for humans to read. **raindrip** is built for **agents and automation scripts** to consume.
+
+1.  **Tabular Efficiency:** TOON's structure handles large bookmark lists without the repetitive key-value overhead of JSON.
+2.  **Context-First:** Commands like `context` and `structure` are designed to give an LLM exactly what it needs to understand your library in one shot.
+3.  **Smart Hints:** Error messages include `"hint"` fields that tell agents exactly how to fix the issue.
+4.  **Dry Run:** Safe account management with a global `--dry-run` flag.
+
+---
+
+## Installation
+
+```bash
+uv tool install .
+```
+
+## Quick Start
+
+1.  **Login** (Verifies token before saving)
+
+Get a test token from https://app.raindrop.io/settings/integrations
+
+    ```bash
+    raindrip login
+    ```
+
+2.  **Account Overview** (The agent "situation report")
+    ```bash
+    raindrip context
+    ```
+
+## Usage Examples
+
+- **List Collections & Tags**
+
+  ```bash
+  raindrip structure
+  ```
+
+- **Search Bookmarks**
+
+  ```bash
+  # TOON (Default)
+  raindrip search "python"
+  # Beautiful table for humans
+  raindrip search "python" --pretty
+  # Standard JSON
+  raindrip search "python" --format json
+  ```
+
+- **Collection Management**
+
+  ```bash
+  raindrip collection create "Research"
+  # Set icon from Raindrop's library
+  raindrip collection set-icon <id> "robot"
+  ```
+
+- **Batch Operations**
+
+  ```bash
+  # Move bookmarks in bulk
+  raindrip batch update --ids 1,2,3 '{"collection": {"$id": <target_id>}}'
+  ```
+
+- **Get Schema** (For AI system prompts)
+  ```bash
+  raindrip schema
+  ```
+
+## Development
+
+```bash
+# Run tests
+uv run pytest tests/
+```
+
+
+
+================================================
+FILE: CHANGELOG.md
+================================================
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [0.1.0] - 2026-01-08
+
+### Added
+- Initial release of `raindrip`.
+- Full Collection Management (CRUD, hierarchy, icons).
+- Global Tag Management (rename, delete).
+- Batch Operations for bookmarks.
+- High-level account `context` command.
+- Hybrid Search (Rich tables for humans, JSON for agents).
+- Verified `login` with API token check.
+- GitHub Actions CI/CD.
+
+
+
+================================================
+FILE: data.toon
+================================================
+[Empty file]
+
+
+================================================
+FILE: LICENSE
+================================================
+MIT License
+
+Copyright (c) 2026 rinvii
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+
+
+================================================
+FILE: playtest.py
+================================================
+import subprocess
+import json
+import sys
+import os
+import time
+
+# Configuration
+# Use 'uv run' to ensure dependencies are available
+PYTHON_CMD = ["uv", "run", "python", "-m", "raindrip.main", "--format", "json"]
+ENV = os.environ.copy()
+# Ensure src is in PYTHONPATH so python -m raindrip.main works
+ENV["PYTHONPATH"] = os.path.join(os.getcwd(), "src") + os.pathsep + ENV.get("PYTHONPATH", "")
+
+def log(msg, color="white"):
+    colors = {
+        "green": "\033[92m",
+        "red": "\033[91m",
+        "yellow": "\033[93m",
+        "blue": "\033[94m",
+        "reset": "\033[0m"
+    }
+    print(f"{colors.get(color, '')}{msg}{colors['reset']}")
+
+def run_raindrip(args, expect_error=False):
+    cmd = PYTHON_CMD + args
+    log(f"Running: {' '.join(args)}", "blue")
+    
+    result = subprocess.run(
+        cmd, 
+        capture_output=True, 
+        text=True, 
+        env=ENV
+    )
+    
+    output = result.stdout.strip()
+    stderr = result.stderr.strip()
+    
+    if stderr:
+        # Ideally, a clean CLI tool shouldn't output to stderr unless it's a critical system error 
+        # or expected diagnostics. We print it if the command fails.
+        pass
+
+    if result.returncode != 0 and not expect_error:
+        log(f"Command failed with code {result.returncode}", "red")
+        log(f"STDERR: {stderr}", "red")
+        log(f"STDOUT: {output}", "red")
+        raise Exception("Command failed")
+
+    try:
+        if not output and result.returncode == 0:
+            return None 
+        data = json.loads(output)
+        return data
+    except json.JSONDecodeError:
+        log("FAILED TO PARSE JSON", "red")
+        log(f"Raw Output: {output}", "red")
+        log(f"STDERR: {stderr}", "red")
+        raise Exception("Invalid JSON output")
+
+def main():
+    log("=== Starting Raindrip Playtest ===", "yellow")
+    
+    # 1. Whoami
+    try:
+        user = run_raindrip(["whoami"])
+        log(f"Logged in as: {user.get('fullName', 'Unknown')}", "green")
+    except Exception:
+        log("Not logged in. Please run 'raindrip login' first.", "red")
+        sys.exit(1)
+
+    collection_id = None
+    bookmark_ids = []
+
+    try:
+        # 2. Create Collection
+        log("\n--- Creating Collection ---")
+        col = run_raindrip(["collection", "create", "Raindrip_Playtest_Zone"])
+        collection_id = col["id"]
+        log(f"Created Collection ID: {collection_id}", "green")
+
+        # 3. Add Bookmarks
+        log("\n--- Adding Bookmarks ---")
+        urls = [
+            ("https://www.python.org", "Python"),
+            ("https://www.rust-lang.org", "Rust"),
+            ("https://typer.tiangolo.com", "Typer")
+        ]
+        
+        for url, title in urls:
+            time.sleep(0.5) 
+            bm = run_raindrip(["add", url, "--title", title, "--collection", str(collection_id)])
+            bookmark_ids.append(bm["id"])
+            log(f"Added {title} (ID: {bm['id']})", "green")
+
+        # 4. Batch Update (Add Tags)
+        log("\n--- Batch Update (Adding Tags) ---")
+        # Note: We must escape the JSON string for the shell argument
+        json_arg = json.dumps({"tags": ["raindrip-test-tag"]})
+        run_raindrip([
+            "batch", "update", 
+            "--ids", ",".join(map(str, bookmark_ids)), 
+            "--collection", str(collection_id),
+            json_arg
+        ])
+        log("Batch update complete", "green")
+
+        # 5. Search Verification
+        log("\n--- Searching ---")
+        time.sleep(2) # Give search index a moment
+        results = run_raindrip(["search", "raindrip-test-tag", "--collection", str(collection_id)])
+        # Search API can be flaky with immediate indexing, so we warn rather than fail hard if 0
+        if len(results) == 3:
+            log(f"Found {len(results)} items with tag 'raindrip-test-tag'", "green")
+        else:
+            log(f"Warning: Found {len(results)}/3 items. Search indexing might be lagging.", "yellow")
+
+        # 6. Tag Rename
+        log("\n--- Renaming Tag ---")
+        run_raindrip(["tag", "rename", "raindrip-test-tag", "raindrip-verified-tag"])
+        log("Tag renamed", "green")
+
+        # 7. Verification of Rename
+        log("\n--- Verifying Rename ---")
+        bm = run_raindrip(["get", str(bookmark_ids[0])])
+        if "raindrip-verified-tag" in bm["tags"]:
+             log("Tag rename verified on bookmark", "green")
+        else:
+             log(f"Tag rename check failed. Tags found: {bm['tags']}", "red")
+
+        # 8. Clean up (Batch Delete)
+        log("\n--- Batch Delete Bookmarks ---")
+        run_raindrip(["batch", "delete", "--ids", ",".join(map(str, bookmark_ids))])
+        log("Bookmarks deleted", "green")
+        
+    except Exception as e:
+        log(f"\n❌ TEST FAILED: {e}", "red")
+        sys.exit(1)
+    finally:
+        # 9. Delete Collection (Cleanup)
+        if collection_id:
+            log("\n--- Cleaning up Collection ---")
+            try:
+                run_raindrip(["collection", "delete", str(collection_id)])
+                log("Collection deleted", "green")
+            except Exception as e:
+                log(f"Failed to delete collection: {e}", "red")
+
+    log("\n✨ Playtest Completed Successfully! ✨", "green")
+
+if __name__ == "__main__":
+    main()
+
+
+
+================================================
+FILE: pyproject.toml
+================================================
+[project]
+name = "raindrip"
+version = "0.1.0"
+description = "raindrip: AI-friendly CLI for Raindrop.io"
+authors = [
+    { name = "rinvii" }
+]
+keywords = ["raindrop", "cli", "ai-agent", "automation", "bookmarks"]
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "httpx>=0.28.1",
+    "toon-format @ git+https://github.com/toon-format/toon-python.git",
+    "pydantic>=2.12.5",
+    "rich>=14.2.0",
+    "typer>=0.21.1",
+]
+
+[project.urls]
+Homepage = "https://github.com/rinvii/raindrip"
+Repository = "https://github.com/rinvii/raindrip"
+Issues = "https://github.com/rinvii/raindrip/issues"
+Changelog = "https://github.com/rinvii/raindrip/blob/main/CHANGELOG.md"
+
+[project.scripts]
+raindrip = "raindrip.main:app"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv]
+package = true
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+    "pytest-asyncio>=1.3.0",
+    "pytest-cov>=7.0.0",
+    "respx>=0.22.0",
+]
+
+
+
+================================================
+FILE: pytest.ini
+================================================
+[pytest]
+asyncio_mode = auto
+
+
+================================================
+FILE: .python-version
+================================================
+3.12
+
+
+
+================================================
+FILE: src/raindrip/__init__.py
+================================================
+[Empty file]
+
+
+================================================
+FILE: src/raindrip/api.py
+================================================
+import httpx
+import asyncio
+import json
+from typing import List, Optional, Any, Dict
+from rich import print as rprint
+from .models import (
+    Raindrop,
+    Collection,
+    RaindropUpdate,
+    CollectionCreate,
+    CollectionUpdate,
+)
+
+
+class RaindropError(Exception):
+    """Base exception for API errors."""
+
+    def __init__(self, message: str, status_code: int = 500, hint: Optional[str] = None):
+        super().__init__(message)
+        self.status_code = status_code
+        self.hint = hint
+
+
+class RateLimitError(RaindropError):
+    """Raised when rate limits are exhausted."""
+
+    def __init__(self, retry_after: int):
+        super().__init__(f"Rate limit exceeded. Retry after {retry_after}s", 429)
+
+
+class ServerError(RaindropError):
+    """Raised when Raindrop.io is down (5xx)."""
+
+    def __init__(self, message: str):
+        super().__init__(message, 502)
+
+
+class RaindropAPI:
+    BASE_URL = "https://api.raindrop.io/rest/v1"
+    WAYBACK_URL = "https://archive.org/wayback/available"
+    MAX_RETRIES = 3
+
+    def __init__(self, token: str, dry_run: bool = False):
+        self.headers = {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+        }
+        self.client = httpx.AsyncClient(timeout=30.0)
+        self.dry_run = dry_run
+
+    async def close(self):
+        await self.client.aclose()
+
+    async def _request(self, method: str, path: str, **kwargs) -> Dict[str, Any]:
+        """
+        Robust request handler with Rate Limit support, Error handling, and Dry Run.
+        """
+        if self.dry_run and method in ["POST", "PUT", "DELETE"]:
+            # Format logs for Dry Run
+            payload = kwargs.get("json", kwargs.get("params", {}))
+            rprint(f"[bold yellow][DRY RUN][/bold yellow] {method} {path}")
+            if payload:
+                # Basic sanitation: never log tokens if they happen to be in payload
+                filtered_payload = {k: v for k, v in payload.items() if "token" not in k.lower()}
+                rprint(f"[dim]Payload: {json.dumps(filtered_payload, indent=2)}[/dim]")
+            
+            if method == "DELETE":
+                return {"result": True}
+            return {"result": True, "item": {"_id": 0, "title": "Dry Run Item", "link": "http://dryrun.com"}, "items": []}
+
+        retries = self.MAX_RETRIES
+        while retries > 0:
+            try:
+                response = await self.client.request(
+                    method, f"{self.BASE_URL}{path}", headers=self.headers, **kwargs
+                )
+
+                if response.status_code == 429:
+                    retries -= 1
+                    retry_after = int(response.headers.get("Retry-After", 10))
+                    rprint(f"[yellow]Rate limited. Retrying in {retry_after}s... ({retries} retries left)[/yellow]")
+                    await asyncio.sleep(retry_after)
+                    continue
+
+                if response.status_code >= 500:
+                    retries -= 1
+                    if retries == 0:
+                        raise ServerError(
+                            f"Raindrop.io Server Error: {response.status_code}"
+                        )
+                    await asyncio.sleep(2)
+                    continue
+
+                response.raise_for_status()
+                try:
+                    return response.json()
+                except json.JSONDecodeError as e:
+                    raise RaindropError(f"Invalid JSON response from API: {str(e)}", 502) from e
+
+            except httpx.HTTPStatusError as e:
+                # 4xx errors: Include the API's error message if available
+                error_detail = e.response.text
+                try:
+                    error_json = e.response.json()
+                    error_detail = error_json.get("errorMessage", error_detail)
+                except Exception:
+                    pass
+                
+                raise RaindropError(
+                    f"API Error {e.response.status_code}: {error_detail}",
+                    status_code=e.response.status_code,
+                ) from e
+            except httpx.RequestError as e:
+                raise RaindropError(f"Network Error: {str(e)}", status_code=503) from e
+        
+        raise RaindropError("Maximum retries exceeded", 504)
+
+    async def check_wayback(self, url: str) -> Optional[str]:
+        """
+        Check if a URL is available in the Wayback Machine.
+        Returns the snapshot URL if found, None otherwise.
+        """
+        try:
+            response = await self.client.get(self.WAYBACK_URL, params={"url": url})
+            if response.status_code == 200:
+                data = response.json()
+                snapshots = data.get("archived_snapshots", {})
+                closest = snapshots.get("closest", {})
+                return closest.get("url")
+        except Exception:
+            pass
+        return None
+
+    async def get_user(self) -> Dict[str, Any]:
+        data = await self._request("GET", "/user")
+        return data.get("user", {})
+
+    async def get_stats(self) -> List[Dict[str, Any]]:
+        """Get account statistics (counts of raindrops, collections, tags)."""
+        data = await self._request("GET", "/user/stats")
+        return data.get("items", [])
+
+    async def get_collections(self) -> List[Collection]:
+        data = await self._request("GET", "/collections/all")
+        return [Collection.model_validate(item) for item in data.get("items", [])]
+
+    async def get_root_collections(self) -> List[Collection]:
+        data = await self._request("GET", "/collections")
+        return [Collection.model_validate(item) for item in data.get("items", [])]
+
+    async def get_child_collections(self) -> List[Collection]:
+        data = await self._request("GET", "/collections/childrens")
+        return [Collection.model_validate(item) for item in data.get("items", [])]
+
+    async def get_collection(self, collection_id: int) -> Collection:
+        data = await self._request("GET", f"/collection/{collection_id}")
+        return Collection.model_validate(data.get("item", {}))
+
+    async def create_collection(self, collection: CollectionCreate) -> Collection:
+        data = await self._request(
+            "POST", "/collection", json=collection.model_dump(exclude_none=True)
+        )
+        return Collection.model_validate(data.get("item", {}))
+
+    async def update_collection(
+        self, collection_id: int, update: CollectionUpdate
+    ) -> Collection:
+        data = await self._request(
+            "PUT",
+            f"/collection/{collection_id}",
+            json=update.model_dump(exclude_none=True),
+        )
+        return Collection.model_validate(data.get("item", {}))
+
+    async def delete_collection(self, collection_id: int) -> bool:
+        data = await self._request("DELETE", f"/collection/{collection_id}")
+        return data.get("result", False)
+
+    async def delete_collections(self, ids: List[int]) -> bool:
+        data = await self._request("DELETE", "/collections", json={"ids": ids})
+        return data.get("result", True) # API returns empty body on success for this one sometimes
+
+    async def reorder_collections(self, sort: str) -> bool:
+        data = await self._request("PUT", "/collections", json={"sort": sort})
+        return data.get("result", False)
+
+    async def expand_all_collections(self, expanded: bool) -> bool:
+        data = await self._request("PUT", "/collections", json={"expanded": expanded})
+        return data.get("result", False)
+
+    async def merge_collections(self, ids: List[int], target_id: int) -> bool:
+        data = await self._request(
+            "PUT", "/collections/merge", json={"ids": ids, "to": target_id}
+        )
+        return data.get("result", True)
+
+    async def clean_empty_collections(self) -> int:
+        data = await self._request("PUT", "/collections/clean")
+        return data.get("count", 0)
+
+    async def upload_collection_cover(self, collection_id: int, file_path: str) -> Collection:
+        """Upload a cover image for a collection."""
+        if self.dry_run:
+            rprint(f"[bold yellow][DRY RUN][/bold yellow] PUT /collection/{collection_id}/cover")
+            rprint(f"[dim]File: {file_path}[/dim]")
+            return Collection.model_validate({"_id": collection_id, "title": "Dry Run Icon"})
+
+        with open(file_path, "rb") as f:
+            files = {"cover": (file_path, f, "image/png")}
+            # We use the client directly to handle multipart upload which _request doesn't support easily
+            response = await self.client.put(
+                f"{self.BASE_URL}/collection/{collection_id}/cover",
+                headers={"Authorization": self.headers["Authorization"]},
+                files=files
+            )
+            response.raise_for_status()
+            data = response.json()
+            return Collection.model_validate(data.get("item", {}))
+
+    async def search_cover(self, query: str) -> List[str]:
+        """Search for cover icons by query."""
+        data = await self._request("GET", f"/collections/covers/{query}")
+        # Flatten the results to just a list of PNG URLs
+        icons = []
+        for group in data.get("items", []):
+            for icon in group.get("icons", []):
+                if "png" in icon:
+                    icons.append(icon["png"])
+        return icons
+
+    async def empty_trash(self) -> bool:
+        data = await self._request("DELETE", "/collection/-99")
+        return data.get("result", False)
+
+    async def get_tags(self) -> List[str]:
+        data = await self._request("GET", "/tags")
+        return [item["_id"] for item in data.get("items", [])]
+
+    async def delete_tags(self, tags: List[str], collection_id: int = 0) -> bool:
+        """Delete tags globally (0) or from a specific collection."""
+        data = await self._request(
+            "DELETE", f"/tags/{collection_id}", json={"tags": tags}
+        )
+        return data.get("result", False)
+
+    async def rename_tag(
+        self, old_name: str, new_name: str, collection_id: int = 0
+    ) -> bool:
+        """Rename a tag (merges if new_name exists)."""
+        data = await self._request(
+            "PUT",
+            f"/tags/{collection_id}",
+            json={"replace": new_name, "tags": [old_name]},
+        )
+        return data.get("result", False)
+
+    async def search(self, query: str = "", collection_id: int = 0) -> List[Raindrop]:
+        page = 0
+        all_items = []
+
+        while True:
+            params = {"search": query, "page": page, "perpage": 50}
+            data = await self._request(
+                "GET", f"/raindrops/{collection_id}", params=params
+            )
+            items = data.get("items", [])
+
+            if not items:
+                break
+
+            all_items.extend([Raindrop.model_validate(item) for item in items])
+
+            if len(items) < 50:
+                break
+
+            page += 1
+
+        return all_items
+
+    async def get_raindrop(self, raindrop_id: int) -> Raindrop:
+        data = await self._request("GET", f"/raindrop/{raindrop_id}")
+        return Raindrop.model_validate(data.get("item", {}))
+
+    async def add_raindrop(
+        self,
+        link: str,
+        title: Optional[str] = None,
+        tags: Optional[List[str]] = None,
+        collection_id: Optional[int] = None,
+    ) -> Raindrop:
+        payload = {"link": link}
+        if title:
+            payload["title"] = title
+        if tags:
+            payload["tags"] = tags
+        if collection_id is not None:
+            payload["collectionId"] = collection_id
+
+        data = await self._request("POST", "/raindrop", json=payload)
+        return Raindrop.model_validate(data.get("item", {}))
+
+    async def update_raindrop(
+        self, raindrop_id: int, update: RaindropUpdate
+    ) -> Raindrop:
+        data = await self._request(
+            "PUT", f"/raindrop/{raindrop_id}", json=update.model_dump(exclude_none=True)
+        )
+        return Raindrop.model_validate(data.get("item", {}))
+
+    async def delete_raindrop(self, raindrop_id: int) -> bool:
+        data = await self._request("DELETE", f"/raindrop/{raindrop_id}")
+        return data.get("result", False)
+
+    async def batch_update_raindrops(
+        self, collection_id: int, ids: List[int], update: RaindropUpdate
+    ) -> bool:
+        """Batch update raindrops in a collection."""
+        payload = update.model_dump(exclude_none=True)
+        payload["ids"] = ids
+        data = await self._request("PUT", f"/raindrops/{collection_id}", json=payload)
+        return data.get("result", False)
+
+    async def batch_delete_raindrops(self, collection_id: int, ids: List[int]) -> bool:
+        """Batch delete raindrops in a collection."""
+        data = await self._request(
+            "DELETE", f"/raindrops/{collection_id}", json={"ids": ids}
+        )
+        return data.get("result", False)
+
+    async def get_suggestions(self, raindrop_id: int) -> Dict[str, List[str]]:
+        data = await self._request("GET", f"/raindrop/{raindrop_id}/suggest")
+        return data.get("item", {})
+
+
+
+================================================
+FILE: src/raindrip/config.py
+================================================
+import json
+from pathlib import Path
+from typing import Optional
+from pydantic import BaseModel
+
+
+class Config(BaseModel):
+    token: Optional[str] = None
+
+
+CONFIG_DIR = Path.home() / ".config" / "raindrip"
+CONFIG_FILE = CONFIG_DIR / "config.json"
+
+
+def load_config() -> Config:
+    """Load configuration from disk."""
+    if not CONFIG_FILE.exists():
+        return Config()
+    try:
+        with open(CONFIG_FILE, "r") as f:
+            return Config.model_validate(json.load(f))
+    except Exception:
+        return Config()
+
+
+def save_config(config: Config) -> None:
+    """Save configuration to disk with secure permissions."""
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    # Set directory permissions to 700 (drwx------)
+    CONFIG_DIR.chmod(0o700)
+    
+    # Create file with 600 permissions (rw-------)
+    if not CONFIG_FILE.exists():
+        CONFIG_FILE.touch(mode=0o600)
+    else:
+        CONFIG_FILE.chmod(0o600)
+        
+    with open(CONFIG_FILE, "w") as f:
+        json.dump(config.model_dump(), f, indent=2)
+
+
+def delete_config() -> None:
+    """Delete the configuration file."""
+    if CONFIG_FILE.exists():
+        CONFIG_FILE.unlink()
+
+
+
+================================================
+FILE: src/raindrip/main.py
+================================================
+import asyncio
+import json
+import os
+import httpx
+import toon_format as toon
+from enum import Enum
+from typing import List, Optional, Any
+import typer
+from rich import print as rprint
+from rich.console import Console
+from rich.table import Table
+
+from .config import load_config, save_config, delete_config, Config
+from .api import RaindropAPI, RaindropError
+from .models import RaindropUpdate, Raindrop, CollectionCreate, CollectionUpdate
+
+app = typer.Typer(help="raindrip: A standalone, AI-friendly CLI for Raindrop.io")
+collection_app = typer.Typer(help="Manage collections")
+tag_app = typer.Typer(help="Manage tags")
+batch_app = typer.Typer(help="Batch operations on bookmarks")
+console = Console()
+
+class OutputFormat(str, Enum):
+    json = "json"
+    toon = "toon"
+
+class State:
+    dry_run: bool = False
+    output_format: OutputFormat = OutputFormat.toon
+
+state = State()
+
+@app.callback()
+def main(
+    dry_run: bool = typer.Option(False, "--dry-run", help="Log actions instead of making real API requests."),
+    format: OutputFormat = typer.Option(OutputFormat.toon, "--format", "-f", help="Output format: toon (default, highest token efficiency) or json.")
+):
+    """
+    raindrip: AI-native CLI for Raindrop.io
+    """
+    state.dry_run = dry_run
+    state.output_format = format
+
+def output_data(data: Any):
+    """Helper to output data in the selected format."""
+    # Ensure data is JSON-serializable (dicts/lists) for both formats
+    if isinstance(data, list):
+        dumped = [item.model_dump() if hasattr(item, "model_dump") else item for item in data]
+    elif hasattr(data, "model_dump"):
+        dumped = data.model_dump()
+    else:
+        dumped = data
+
+    if state.output_format == OutputFormat.toon:
+        print(toon.encode(dumped))
+    else:
+        print(json.dumps(dumped, indent=2))
+
+def get_authenticated_api() -> RaindropAPI:
+    config = load_config()
+    if not config.token:
+        rprint("[bold red]Error:[/bold red] Not logged in. Run `raindrip login` first.")
+        raise typer.Exit(code=1)
+    return RaindropAPI(config.token, dry_run=state.dry_run)
+
+async def cleanup_api(api: RaindropAPI):
+    await api.close()
+
+# Decorator to handle errors gracefully and force JSON output for errors
+def handle_errors(func):
+    async def wrapper(*args, **kwargs):
+        try:
+            await func(*args, **kwargs)
+        except json.JSONDecodeError:
+            print(json.dumps({
+                "error": "Invalid JSON input provided to command.",
+                "status": 400,
+                "hint": "Ensure your JSON data is valid and properly escaped for the shell."
+            }))
+            raise typer.Exit(code=1)
+        except RaindropError as e:
+            hint = e.hint
+            if not hint:
+                if e.status_code == 404:
+                    hint = "The requested resource was not found. Verify the ID is correct."
+                elif e.status_code == 401:
+                    hint = "Authentication failed. Try running 'raindrip login' again."
+            
+            print(json.dumps({
+                "error": str(e), 
+                "status": e.status_code,
+                "hint": hint
+            }, indent=2 if not getattr(wrapper, "compact", False) else None))
+            raise typer.Exit(code=1)
+        except Exception as e:
+            print(json.dumps({
+                "error": f"Unexpected error: {str(e)}", 
+                "status": 500,
+                "hint": "Check the CLI logs or report this issue."
+            }))
+            raise typer.Exit(code=1)
+    return wrapper
+
+@app.command()
+def login(token: str = typer.Option(..., prompt="Enter your Raindrop.io API Token", hide_input=True)):
+    """
+    Login with your Raindrop.io API token (verifies before saving).
+    
+    Example: raindrip login
+    """
+    
+    @handle_errors
+    async def verify():
+        api = RaindropAPI(token)
+        try:
+            rprint("Verifying token...")
+            user = await api.get_user()
+            save_config(Config(token=token))
+            rprint(f"[bold green]Success![/bold green] Logged in as [bold]{user.get('fullName')}[/bold].")
+        finally:
+            await api.close()
+            
+    asyncio.run(verify())
+
+@app.command()
+def logout():
+    """
+    Remove your stored credentials.
+    
+    Example: raindrip logout
+    """
+    delete_config()
+    rprint("[bold yellow]Logged out.[/bold yellow] Credentials removed.")
+
+@app.command()
+def whoami():
+    """
+    Show current user details.
+    
+    Example: raindrip whoami
+    """
+    api = get_authenticated_api()
+    @handle_errors
+    async def run():
+        try:
+            user = await api.get_user()
+            output_data(user)
+        finally:
+            await cleanup_api(api)
+    asyncio.run(run())
+
+@app.command()
+def context():
+    """
+    Show high-level account context (User, Stats, Recent Activity).
+    
+    Example: raindrip context
+    """
+    api = get_authenticated_api()
+    @handle_errors
+    async def run():
+        try:
+            # Parallel fetch for speed
+            user, stats, recent, collections = await asyncio.gather(
+                api.get_user(),
+                api.get_stats(),
+                api.search(collection_id=0), # Default page 0 is recent items
+                api.get_collections()
+            )
+            
+            # Simplified Context Output
+            context_data = {
+                "user": [{"id": user.get("_id"), "name": user.get("fullName")}],
+                "stats": [{
+                    "total_bookmarks": next((s["count"] for s in stats if s["_id"] == 0), 0),
+                    "total_collections": len(collections),
+                }],
+                "structure": {
+                    "root_collections": [
+                        {"id": c.id, "title": c.title, "count": c.count} 
+                        for c in collections if not getattr(c, "parent", None) # Top level only
+                    ]
+                },
+                "recent_activity": [
+                    {"id": r.id, "title": r.title, "created": r.id} # ID is roughly chronological
+                    for r in recent[:5]
+                ]
+            }
+            output_data(context_data)
+        finally:
+            await cleanup_api(api)
+    asyncio.run(run())
+
+@app.command()
+def structure():
+    """
+    Show collections and tags.
+    
+    Example: raindrip structure
+    """
+    api = get_authenticated_api()
+    @handle_errors
+    async def run():
+        try:
+            collections, tags = await asyncio.gather(
+                api.get_collections(),
+                api.get_tags()
+            )
+            output_data({
+                "collections": [
+                    {
+                        "id": c.id, 
+                        "title": c.title, 
+                        "count": c.count, 
+                        "parent_id": c.parent.get("$id") if c.parent else None,
+                        "last_update": c.lastUpdate
+                    } for c in collections
+                ],
+                "tags": tags
+            })
+        finally:
+            await cleanup_api(api)
+    asyncio.run(run())
+
+@app.command()
+def schema():
+    """
+    Dump the JSON Schemas and usage examples (For AI context).
+    
+    Example: raindrip schema
+    """
+    print(json.dumps({
+        "schemas": {
+            "Raindrop": Raindrop.model_json_schema(),
+            "RaindropUpdate": RaindropUpdate.model_json_schema(),
+            "CollectionCreate": CollectionCreate.model_json_schema(),
+            "CollectionUpdate": CollectionUpdate.model_json_schema(),
+        },
+        "usage_examples": {
+            "patch_update_title_tags": "raindrip patch <id> '{\"title\": \"New Title\", \"tags\": [\"ai\", \"cli\"]}'",
+            "move_single_bookmark": "raindrip patch <id> '{\"collectionId\": <target_col_id>}'",
+            "move_batch_bookmarks": "raindrip batch update --ids 1,2 --collection <source_col_id> '{\"collection\": {\"$id\": <target_col_id>}}'",
+            "create_collection": "raindrip collection create \"Research\" --public",
+            "set_collection_icon_search": "raindrip collection set-icon <id> \"robot\"",
+            "set_collection_icon_url": "raindrip collection cover <id> \"https://example.com/icon.png\"",
+            "complex_query": "raindrip search \"python tag:important\" --pretty"
+        }
+    }, indent=2))
+
+@app.command()
+def search(
+    query: str = typer.Argument("", help="Search query"), 
+    collection: int = 0,
+    pretty: bool = typer.Option(False, "--pretty", "-p", help="Display results in a formatted table for humans."),
+    format: Optional[OutputFormat] = typer.Option(None, "--format", "-f", help="Output format: toon or json."),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Log actions instead of making real API requests.")
+):
+    """
+    Search for bookmarks (paginated).
+    
+    Examples: 
+    raindrip search "python"
+    raindrip search "tag:important" --pretty
+    """
+    if format:
+        state.output_format = format
+    if dry_run:
+        state.dry_run = True
+        
+    api = get_authenticated_api()
+    @handle_errors
+    async def run():
+        try:
+            results = await api.search(query, collection)
+            if pretty:
+                # Rich Table for Humans
+                table = Table(title=f"Search Results: {query}" if query else "Recent Bookmarks")
+                table.add_column("ID", style="cyan")
+                table.add_column("Title", style="white")
+                table.add_column("Tags", style="green")
+                table.add_column("Link", style="blue")
+                
+                for r in results:
+                    table.add_row(
+                        str(r.id),
+                        r.title[:50] + ("..." if len(r.title) > 50 else ""),
+                        ", ".join(r.tags),
+                        r.link[:50] + ("..." if len(r.link) > 50 else "")
+                    )
+                console.print(table)
+                rprint(f"\n[dim]Total results: {len(results)}[/dim]")
+            else:
+                # Flatten tags and wrap in object for TOON efficiency/compatibility
+                results_data = {
+                    "items": [
+                        {
+                            "id": r.id, 
+                            "title": r.title, 
+                            "link": r.link, 
+                            "tags": ",".join(r.tags) if r.tags else "",
+                            "type": r.type or "link",
+                            "created": r.created
+                        } for r in results
+                    ]
+                }
+                output_data(results_data)
+        finally:
+            await cleanup_api(api)
+    asyncio.run(run())
+
+@app.command()
+def get(raindrop_id: int):
+    """
+    Get full details for a specific bookmark.
+    
+    Example: raindrip get 123456
+    """
+    api = get_authenticated_api()
+    @handle_errors
+    async def run():
+        try:
+            result = await api.get_raindrop(raindrop_id)
+            output_data(result)
+        finally:
+            await cleanup_api(api)
+    asyncio.run(run())
+
+@app.command()
+def suggest(raindrop_id: int):
+    """
+    Get tag/collection suggestions for a bookmark.
+    
+    Example: raindrip suggest 123456
+    """
+    api = get_authenticated_api()
+    @handle_errors
+    async def run():
+        try:
+            suggestions = await api.get_suggestions(raindrop_id)
+            output_data(suggestions)
+        finally:
+            await cleanup_api(api)
+    asyncio.run(run())
+
+@app.command()
+def wayback(url: str):
+    """
+    Check if a URL is available in the Wayback Machine.
+    
+    Example: raindrip wayback "https://google.com"
+    """
+    api = get_authenticated_api()
+    @handle_errors
+    async def run():
+        try:
+            snapshot = await api.check_wayback(url)
+            output_data({"url": url, "snapshot": snapshot})
+        finally:
+            await cleanup_api(api)
+    asyncio.run(run())
+
+@app.command()
+def add(url: str, title: Optional[str] = None, tags: Optional[str] = None, collection: Optional[int] = None):
+    """
+    Add a new bookmark.
+    
+    Example: raindrip add "https://example.com" --title "Example" --tags "tag1,tag2"
+    """
+    api = get_authenticated_api()
+    tag_list = tags.split(",") if tags else None
+    @handle_errors
+    async def run():
+        try:
+            result = await api.add_raindrop(url, title, tag_list, collection)
+            output_data(result)
+        finally:
+            await cleanup_api(api)
+    asyncio.run(run())
+
+@app.command()
+def patch(raindrop_id: int, data: str):
+    """
+    Update a bookmark with a JSON patch.
+    
+    Example: raindrip patch 123456 '{"title": "New Title", "tags": ["updated"]}'
+    """
+    api = get_authenticated_api()
+    @handle_errors
+    async def run():
+        patch_data = json.loads(data)
+        update = RaindropUpdate.model_validate(patch_data)
+        try:
+            result = await api.update_raindrop(raindrop_id, update)
+            output_data(result)
+        finally:
+            await cleanup_api(api)
+    asyncio.run(run())
+
+@app.command()
+def delete(raindrop_id: int):
+    """
+    Delete a bookmark.
+    
+    Example: raindrip delete 123456
+    """
+    api = get_authenticated_api()
+    @handle_errors
+    async def run():
+        try:
+            success = await api.delete_raindrop(raindrop_id)
+            output_data({"success": success})
+        finally:
+            await cleanup_api(api)
+    asyncio.run(run())
+
+@app.command()
+def sort(raindrop_id: int):
+    """
+    Suggest the best collection for a bookmark based on its title.
+    
+    Example: raindrip sort 123456
+    """
+    api = get_authenticated_api()
+    @handle_errors
+    async def run():
+        try:
+            bookmark = await api.get_raindrop(raindrop_id)
+            collections = await api.get_collections()
+            
+            # Simple keyword matching logic
+            suggestions = []
+            title_lower = bookmark.title.lower()
+            
+            for col in collections:
+                col_title = col.title.lower()
+                # Score based on keyword overlap
+                if col_title in title_lower or any(word in title_lower for word in col_title.split()):
+                    suggestions.append({
+                        "id": col.id,
+                        "title": col.title,
+                        "match_reason": f"Matches keyword '{col.title}'"
+                    })
+            
+            output_data({
+                "bookmark": {"id": bookmark.id, "title": bookmark.title},
+                "suggested_collections": suggestions[:3] # Top 3
+            })
+        finally:
+            await cleanup_api(api)
+    asyncio.run(run())
+
+# Collection Commands
+@collection_app.command("create")
+def collection_create(
+    title: str,
+    parent: Optional[int] = typer.Option(None, help="Parent collection ID"),
+    public: Optional[bool] = typer.Option(None, help="Make collection public"),
+    view: Optional[str] = typer.Option(None, help="View style (list, simple, grid, masonry)"),
+    format: Optional[OutputFormat] = typer.Option(None, "--format", "-f", help="Output format: toon or json."),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Log actions instead of making real API requests.")
+):
+    """
+    Create a new collection.
+    
+    Example: raindrip collection create "Research" --public
+    """
+    if format:
+        state.output_format = format
+    if dry_run:
+        state.dry_run = True
+        
+    api = get_authenticated_api()
+    parent_dict = {"$id": parent} if parent is not None else None
+    
+    new_collection = CollectionCreate(
+        title=title,
+        parent=parent_dict,
+        public=public,
+        view=view
+    )
+
+    @handle_errors
+    async def run():
+        try:
+            result = await api.create_collection(new_collection)
+            output_data(result)
+        finally:
+            await cleanup_api(api)
+    asyncio.run(run())
+
+@collection_app.command("update")
+def collection_update(collection_id: int, data: str):
+    """
+    Update a collection with a JSON patch.
+    
+    Example: raindrip collection update 123 '{"title": "New Name"}'
+    """
+    api = get_authenticated_api()
+    @handle_errors
+    async def run():
+        patch_data = json.loads(data)
+        update = CollectionUpdate.model_validate(patch_data)
+        try:
+            result = await api.update_collection(collection_id, update)
+            output_data(result)
+        finally:
+            await cleanup_api(api)
+    asyncio.run(run())
+
+@collection_app.command("delete")
+def collection_delete(collection_id: int):
+    """
+    Delete a collection.
+    
+    Example: raindrip collection delete 123
+    """
+    api = get_authenticated_api()
+    @handle_errors
+    async def run():
+        try:
+            success = await api.delete_collection(collection_id)
+            output_data({"success": success})
+        finally:
+            await cleanup_api(api)
+    asyncio.run(run())
+
+@collection_app.command("get")
+def collection_get(collection_id: int):
+    """
+    Get details of a specific collection.
+    
+    Example: raindrip collection get 123
+    """
+    api = get_authenticated_api()
+    @handle_errors
+    async def run():
+        try:
+            result = await api.get_collection(collection_id)
+            output_data(result)
+        finally:
+            await cleanup_api(api)
+    asyncio.run(run())
+
+@collection_app.command("delete-multiple")
+def collection_delete_multiple(ids: str = typer.Argument(..., help="Comma-separated list of collection IDs")):
+    """
+    Delete multiple collections at once.
+    
+    Example: raindrip collection delete-multiple 123,456
+    """
+    api = get_authenticated_api()
+    id_list = [int(i.strip()) for i in ids.split(",")]
+    @handle_errors
+    async def run():
+        try:
+            success = await api.delete_collections(id_list)
+            output_data({"success": success})
+        finally:
+            await cleanup_api(api)
+    asyncio.run(run())
+
+@collection_app.command("reorder")
+def collection_reorder(sort: str = typer.Argument(..., help="Sort order: title, -title, -count")):
+    """
+    Reorder all collections.
+    
+    Example: raindrip collection reorder title
+    """
+    api = get_authenticated_api()
+    @handle_errors
+    async def run():
+        try:
+            success = await api.reorder_collections(sort)
+            output_data({"success": success})
+        finally:
+            await cleanup_api(api)
+    asyncio.run(run())
+
+@collection_app.command("expand-all")
+def collection_expand_all(expanded: bool = typer.Argument(..., help="True to expand, False to collapse")):
+    """
+    Expand or collapse all collections.
+    
+    Example: raindrip collection expand-all True
+    """
+    api = get_authenticated_api()
+    @handle_errors
+    async def run():
+        try:
+            success = await api.expand_all_collections(expanded)
+            output_data({"success": success})
+        finally:
+            await cleanup_api(api)
+    asyncio.run(run())
+
+@collection_app.command("merge")
+def collection_merge(
+    ids: str = typer.Argument(..., help="Comma-separated list of collection IDs to merge"),
+    target_id: int = typer.Argument(..., help="Target collection ID")
+):
+    """
+    Merge multiple collections into one.
+    
+    Example: raindrip collection merge 123,456 789
+    """
+    api = get_authenticated_api()
+    id_list = [int(i.strip()) for i in ids.split(",")]
+    @handle_errors
+    async def run():
+        try:
+            success = await api.merge_collections(id_list, target_id)
+            output_data({"success": success})
+        finally:
+            await cleanup_api(api)
+    asyncio.run(run())
+
+@collection_app.command("cover")
+def collection_cover(
+    collection_id: int = typer.Argument(..., help="Collection ID"),
+    source: str = typer.Argument(..., help="File path or URL of the cover image")
+):
+    """
+    Upload a cover image to a collection.
+    
+    Example: raindrip collection cover 123 "https://example.com/icon.png"
+    """
+    api = get_authenticated_api()
+    
+    @handle_errors
+    async def run():
+        file_path = source
+        is_temp = False
+        
+        try:
+            with console.status("[bold green]Processing cover...") as status:
+                # Handle URL
+                if source.startswith("http://") or source.startswith("https://"):
+                    status.update(f"[bold blue]Downloading cover from {source}...")
+                    async with httpx.AsyncClient() as client:
+                        resp = await client.get(source)
+                        resp.raise_for_status()
+                        file_path = "temp_cover.png"
+                        with open(file_path, "wb") as f:
+                            f.write(resp.content)
+                        is_temp = True
+
+                status.update(f"[bold yellow]Uploading cover to collection {collection_id}...")
+                result = await api.upload_collection_cover(collection_id, file_path)
+                output_data(result)
+            
+        finally:
+            if is_temp and os.path.exists(file_path):
+                os.remove(file_path)
+            await cleanup_api(api)
+    asyncio.run(run())
+
+@collection_app.command("set-icon")
+def collection_set_icon(
+    collection_id: int = typer.Argument(..., help="Collection ID"),
+    query: str = typer.Argument(..., help="Search query for icon (e.g. 'code', 'art')"),
+    format: Optional[OutputFormat] = typer.Option(None, "--format", "-f", help="Output format: toon or json."),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Log actions instead of making real API requests.")
+):
+    """
+    Search for and set a collection icon using Raindrop's library.
+    
+    Example: raindrip collection set-icon 123 "robot"
+    """
+    if format:
+        state.output_format = format
+    if dry_run:
+        state.dry_run = True
+        
+    api = get_authenticated_api()
+    @handle_errors
+    async def run():
+        try:
+            with console.status(f"[bold green]Searching icons for '{query}'...") as status:
+                icons = await api.search_cover(query)
+                if not icons:
+                    rprint("[red]No icons found.[/red]")
+                    return
+                
+                # Pick the first one (usually best match)
+                icon_url = icons[0]
+                status.update(f"[bold blue]Found icon, downloading...")
+                
+                # Download to temp file
+                file_path = "temp_icon.png"
+                async with httpx.AsyncClient() as client:
+                    resp = await client.get(icon_url)
+                    resp.raise_for_status()
+                    with open(file_path, "wb") as f:
+                        f.write(resp.content)
+                
+                try:
+                    status.update(f"[bold yellow]Uploading icon to collection {collection_id}...")
+                    result = await api.upload_collection_cover(collection_id, file_path)
+                    output_data(result)
+                finally:
+                    if os.path.exists(file_path):
+                        os.remove(file_path)
+        finally:
+            await cleanup_api(api)
+    asyncio.run(run())
+
+@collection_app.command("clean")
+def collection_clean():
+    """
+    Remove all empty collections.
+    
+    Example: raindrip collection clean
+    """
+    api = get_authenticated_api()
+    @handle_errors
+    async def run():
+        try:
+            count = await api.clean_empty_collections()
+            output_data({"removed_count": count})
+        finally:
+            await cleanup_api(api)
+    asyncio.run(run())
+
+@collection_app.command("empty-trash")
+def collection_empty_trash():
+    """
+    Empty the trash collection.
+    
+    Example: raindrip collection empty-trash
+    """
+    api = get_authenticated_api()
+    @handle_errors
+    async def run():
+        try:
+            success = await api.empty_trash()
+            output_data({"success": success})
+        finally:
+            await cleanup_api(api)
+    asyncio.run(run())
+
+# Tag Commands
+@tag_app.command("delete")
+def tag_delete(
+    tags: List[str] = typer.Argument(..., help="List of tags to delete"),
+    collection: int = typer.Option(0, help="Collection ID (0 for global)")
+):
+    """
+    Delete tags from all bookmarks (global) or a specific collection.
+    
+    Example: raindrip tag delete "old-tag" "useless-tag"
+    """
+    api = get_authenticated_api()
+    @handle_errors
+    async def run():
+        try:
+            success = await api.delete_tags(tags, collection)
+            output_data({"success": success})
+        finally:
+            await cleanup_api(api)
+    asyncio.run(run())
+
+@tag_app.command("rename")
+def tag_rename(
+    old_name: str = typer.Argument(..., help="Current tag name"),
+    new_name: str = typer.Argument(..., help="New tag name"),
+    collection: int = typer.Option(0, help="Collection ID (0 for global)")
+):
+    """
+    Rename a tag. Merges with existing tag if new name already exists.
+    
+    Example: raindrip tag rename "work" "career"
+    """
+    api = get_authenticated_api()
+    @handle_errors
+    async def run():
+        try:
+            success = await api.rename_tag(old_name, new_name, collection)
+            output_data({"success": success})
+        finally:
+            await cleanup_api(api)
+    asyncio.run(run())
+
+# Batch Commands
+@batch_app.command("update")
+def batch_update(
+    ids: str = typer.Option(..., help="Comma-separated list of bookmark IDs"),
+    data: str = typer.Argument(..., help="JSON patch for updates"),
+    collection: int = typer.Option(0, help="Collection ID"),
+    format: Optional[OutputFormat] = typer.Option(None, "--format", "-f", help="Output format: toon or json."),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Log actions instead of making real API requests.")
+):
+    """
+    Update multiple bookmarks at once.
+    
+    Example: raindrip batch update --ids 1,2,3 '{"tags": ["research"]}'
+    """
+    if format:
+        state.output_format = format
+    if dry_run:
+        state.dry_run = True
+        
+    api = get_authenticated_api()
+    @handle_errors
+    async def run():
+        id_list = [int(i.strip()) for i in ids.split(",")]
+        patch_data = json.loads(data)
+        update = RaindropUpdate.model_validate(patch_data)
+        try:
+            success = await api.batch_update_raindrops(collection, id_list, update)
+            output_data({"success": success})
+        finally:
+            await cleanup_api(api)
+    asyncio.run(run())
+
+@batch_app.command("delete")
+def batch_delete(
+    ids: str = typer.Option(..., help="Comma-separated list of bookmark IDs"),
+    collection: int = typer.Option(0, help="Collection ID (use -99 for permanent delete)")
+):
+    """
+    Delete multiple bookmarks at once.
+    
+    Example: raindrip batch delete --ids 1,2,3
+    """
+    api = get_authenticated_api()
+    try:
+        id_list = [int(i.strip()) for i in ids.split(",")]
+    except Exception as e:
+        rprint(f"[bold red]Error:[/bold red] Invalid IDs: {e}")
+        raise typer.Exit(code=1)
+
+    @handle_errors
+    async def run():
+        try:
+            success = await api.batch_delete_raindrops(collection, id_list)
+            output_data({"success": success})
+        finally:
+            await cleanup_api(api)
+    asyncio.run(run())
+
+app.add_typer(collection_app, name="collection")
+app.add_typer(tag_app, name="tag")
+app.add_typer(batch_app, name="batch")
+
+if __name__ == "__main__":
+    app()
+
+
+
+================================================
+FILE: src/raindrip/models.py
+================================================
+from typing import List, Optional
+from pydantic import BaseModel, Field
+
+
+class Collection(BaseModel):
+    id: int = Field(alias="_id")
+    title: str
+    count: Optional[int] = 0
+    parent: Optional[dict] = None  # Contains {"$id": int}
+    view: Optional[str] = None
+    public: Optional[bool] = None
+    expanded: Optional[bool] = None
+    sort: Optional[int] = None
+    cover: Optional[List[str]] = None
+    created: Optional[str] = None
+    lastUpdate: Optional[str] = None
+    color: Optional[str] = None
+    access: Optional[dict] = None
+    collaborators: Optional[dict] = None
+    user: Optional[dict] = None
+
+
+class CollectionCreate(BaseModel):
+    title: str
+    view: Optional[str] = None
+    public: Optional[bool] = None
+    parent: Optional[dict] = None  # Expecting {"$id": int} if set
+
+
+class CollectionUpdate(BaseModel):
+    title: Optional[str] = None
+    view: Optional[str] = None
+    public: Optional[bool] = None
+    parent: Optional[dict] = None
+    expanded: Optional[bool] = None
+
+
+class Raindrop(BaseModel):
+    id: int = Field(alias="_id")
+    link: str
+    title: str = ""
+    excerpt: str = ""
+    note: str = ""
+    tags: List[str] = []
+    cover: Optional[str] = None
+    created: Optional[str] = None
+    lastUpdate: Optional[str] = None
+    type: Optional[str] = "link"  # link, article, image, video, document, audio
+    important: Optional[bool] = False
+    collection_id: int = Field(alias="collectionId", default=-1)
+    domain: Optional[str] = None
+    media: Optional[List[dict]] = None
+    broken: Optional[bool] = False
+
+
+class RaindropUpdate(BaseModel):
+    link: Optional[str] = None
+    title: Optional[str] = None
+    excerpt: Optional[str] = None
+    note: Optional[str] = None
+    tags: Optional[List[str]] = None
+    collectionId: Optional[int] = None
+    collection: Optional[dict] = None  # Expected structure: {"$id": int}
+
+
+class AccountStructure(BaseModel):
+    collections: List[Collection]
+    tags: List[str]
+
+
+
+================================================
+FILE: tests/test_api.py
+================================================
+import pytest
+import respx
+import json
+import httpx
+from httpx import Response
+from raindrip.api import RaindropAPI, ServerError, RaindropError, RateLimitError
+from raindrip.models import RaindropUpdate
+
+# Mock Data
+MOCK_TOKEN = "test-token"
+BASE_URL = "https://api.raindrop.io/rest/v1"
+
+@pytest.fixture
+def api():
+    return RaindropAPI(MOCK_TOKEN)
+
+@pytest.mark.asyncio
+async def test_get_user(api):
+    async with respx.mock(base_url=BASE_URL) as respx_mock:
+        respx_mock.get("/user").mock(
+            return_value=Response(200, json={"user": {"fullName": "Test User"}})
+        )
+        user = await api.get_user()
+        assert user["fullName"] == "Test User"
+
+@pytest.mark.asyncio
+async def test_get_collections(api):
+    mock_data = {
+        "items": [
+            {"_id": 1, "title": "Tech", "count": 10},
+            {"_id": 2, "title": "Recipes", "count": 5}
+        ]
+    }
+    async with respx.mock(base_url=BASE_URL) as respx_mock:
+        respx_mock.get("/collections/all").mock(return_value=Response(200, json=mock_data))
+        collections = await api.get_collections()
+        assert len(collections) == 2
+        assert collections[0].title == "Tech"
+
+@pytest.mark.asyncio
+async def test_get_tags(api):
+    mock_data = {"items": [{"_id": "ai", "count": 10}, {"_id": "python", "count": 5}]}
+    async with respx.mock(base_url=BASE_URL) as respx_mock:
+        respx_mock.get("/tags").mock(return_value=Response(200, json=mock_data))
+        tags = await api.get_tags()
+        assert tags == ["ai", "python"]
+
+@pytest.mark.asyncio
+async def test_pagination(api):
+    page1 = {"items": [{"_id": i, "link": f"http://s{i}.com", "title": f"T{i}"} for i in range(50)]}
+    page2 = {"items": [{"_id": 99, "link": "http://s99.com", "title": "Last"}]}
+
+    async with respx.mock(base_url=BASE_URL) as respx_mock:
+        respx_mock.get("/raindrops/0", params={"search": "", "page": "0", "perpage": "50"}).mock(
+            return_value=Response(200, json=page1)
+        )
+        respx_mock.get("/raindrops/0", params={"search": "", "page": "1", "perpage": "50"}).mock(
+            return_value=Response(200, json=page2)
+        )
+        results = await api.search(collection_id=0)
+        assert len(results) == 51
+
+@pytest.mark.asyncio
+async def test_get_raindrop(api):
+    mock_item = {"item": {"_id": 123, "title": "Single", "link": "http://one.com"}}
+    async with respx.mock(base_url=BASE_URL) as respx_mock:
+        respx_mock.get("/raindrop/123").mock(return_value=Response(200, json=mock_item))
+        item = await api.get_raindrop(123)
+        assert item.title == "Single"
+
+@pytest.mark.asyncio
+async def test_add_raindrop_with_collection(api):
+    mock_resp = {"item": {"_id": 100, "link": "http://new.com", "title": "New", "collectionId": 456}}
+    async with respx.mock(base_url=BASE_URL) as respx_mock:
+        respx_mock.post("/raindrop").mock(return_value=Response(200, json=mock_resp))
+        result = await api.add_raindrop("http://new.com", collection_id=456)
+        assert result.collection_id == 456
+
+@pytest.mark.asyncio
+async def test_add_raindrop(api):
+    mock_resp = {"item": {"_id": 100, "link": "http://new.com", "title": "New", "tags": ["t1"]}}
+    async with respx.mock(base_url=BASE_URL) as respx_mock:
+        post_route = respx_mock.post("/raindrop").mock(return_value=Response(200, json=mock_resp))
+        
+        result = await api.add_raindrop("http://new.com", "New", ["t1"])
+        assert result.id == 100
+        
+        # Verify payload
+        payload = json.loads(post_route.calls.last.request.content)
+        assert payload["link"] == "http://new.com"
+        assert payload["tags"] == ["t1"]
+
+@pytest.mark.asyncio
+async def test_update_raindrop(api):
+    mock_resp = {"item": {"_id": 100, "title": "Updated", "link": "http://example.com"}}
+    update_data = RaindropUpdate(title="Updated")
+    
+    async with respx.mock(base_url=BASE_URL) as respx_mock:
+        put_route = respx_mock.put("/raindrop/100").mock(return_value=Response(200, json=mock_resp))
+        
+        result = await api.update_raindrop(100, update_data)
+        assert result.title == "Updated"
+        
+        # Verify only dirty fields sent
+        payload = json.loads(put_route.calls.last.request.content)
+        assert payload == {"title": "Updated"}
+
+@pytest.mark.asyncio
+async def test_delete_raindrop(api):
+    async with respx.mock(base_url=BASE_URL) as respx_mock:
+        respx_mock.delete("/raindrop/123").mock(return_value=Response(200, json={"result": True}))
+        success = await api.delete_raindrop(123)
+        assert success is True
+
+@pytest.mark.asyncio
+async def test_get_suggestions(api):
+    mock_data = {"item": {"tags": [{"_id": "suggested"}], "collections": []}}
+    async with respx.mock(base_url=BASE_URL) as respx_mock:
+        respx_mock.get("/raindrop/123/suggest").mock(return_value=Response(200, json=mock_data))
+        sug = await api.get_suggestions(123)
+        assert sug["tags"][0]["_id"] == "suggested"
+
+@pytest.mark.asyncio
+async def test_rate_limit_retry(api):
+    async with respx.mock(base_url=BASE_URL) as respx_mock:
+        route = respx_mock.get("/user")
+        route.side_effect = [
+            Response(429, headers={"Retry-After": "0"}), 
+            Response(200, json={"user": {}})
+        ]
+        await api.get_user()
+        assert route.call_count == 2
+
+@pytest.mark.asyncio
+async def test_server_error_failure(api):
+    async with respx.mock(base_url=BASE_URL) as respx_mock:
+        respx_mock.get("/user").mock(return_value=Response(500))
+        with pytest.raises(ServerError):
+            await api.get_user()
+
+@pytest.mark.asyncio
+async def test_wayback_machine(api):
+    snapshot = "http://archive.org/web/2023/http://google.com"
+    mock_resp = {"archived_snapshots": {"closest": {"url": snapshot, "available": True}}}
+    
+    async with respx.mock() as respx_mock:
+        respx_mock.get("https://archive.org/wayback/available").mock(
+            return_value=Response(200, json=mock_resp)
+        )
+        result = await api.check_wayback("http://google.com")
+        assert result == snapshot
+
+@pytest.mark.asyncio
+async def test_wayback_error(api):
+    async with respx.mock() as respx_mock:
+        respx_mock.get("https://archive.org/wayback/available").mock(return_value=Response(500))
+        result = await api.check_wayback("http://error.com")
+        assert result is None
+
+@pytest.mark.asyncio
+async def test_wayback_exception(api):
+    async with respx.mock() as respx_mock:
+        respx_mock.get("https://archive.org/wayback/available").side_effect = Exception("Boom")
+        result = await api.check_wayback("http://exception.com")
+        assert result is None
+
+@pytest.mark.asyncio
+async def test_get_root_collections(api):
+    async with respx.mock(base_url=BASE_URL) as respx_mock:
+        respx_mock.get("/collections").mock(return_value=Response(200, json={"items": [{"_id": 1, "title": "Root"}]}))
+        cols = await api.get_root_collections()
+        assert len(cols) == 1
+        assert cols[0].title == "Root"
+
+@pytest.mark.asyncio
+async def test_get_child_collections(api):
+    async with respx.mock(base_url=BASE_URL) as respx_mock:
+        respx_mock.get("/collections/childrens").mock(return_value=Response(200, json={"items": [{"_id": 2, "title": "Child"}]}))
+        cols = await api.get_child_collections()
+        assert len(cols) == 1
+        assert cols[0].title == "Child"
+
+@pytest.mark.asyncio
+async def test_api_retry_server_error(api):
+    async with respx.mock(base_url=BASE_URL) as respx_mock:
+        route = respx_mock.get("/user")
+        route.side_effect = [Response(500), Response(200, json={"user": {"fullName": "Recovered"}})]
+        user = await api.get_user()
+        assert user["fullName"] == "Recovered"
+        assert route.call_count == 2
+
+@pytest.mark.asyncio
+async def test_clean_empty_collections(api):
+    async with respx.mock(base_url=BASE_URL) as respx_mock:
+        respx_mock.put("/collections/clean").mock(return_value=Response(200, json={"count": 3}))
+        count = await api.clean_empty_collections()
+        assert count == 3
+
+def test_rate_limit_error_init():
+    err = RateLimitError(10)
+    assert err.status_code == 429
+    assert "10s" in str(err)
+
+def test_raindrop_error_hint():
+    err = RaindropError("msg", status_code=400, hint="try again")
+    assert err.hint == "try again"
+
+@pytest.mark.asyncio
+async def test_api_network_error(api):
+    with respx.mock(base_url=BASE_URL) as respx_mock:
+        respx_mock.get("/user").side_effect = httpx.RequestError("Network")
+        with pytest.raises(RaindropError) as excinfo:
+            await api.get_user()
+        assert excinfo.value.status_code == 503
+
+@pytest.mark.asyncio
+async def test_api_4xx_no_json(api):
+    async with respx.mock(base_url=BASE_URL) as respx_mock:
+        # Trigger line 106-107: except Exception: pass
+        respx_mock.get("/user").mock(return_value=Response(400, content="Bad Request"))
+        with pytest.raises(RaindropError) as excinfo:
+            await api.get_user()
+        assert "400" in str(excinfo.value)
+
+@pytest.mark.asyncio
+async def test_api_max_retries_reached_5xx(api, monkeypatch):
+    monkeypatch.setattr(api, "MAX_RETRIES", 1)
+    async with respx.mock(base_url=BASE_URL) as respx_mock:
+        # Trigger line 116: raise ServerError
+        respx_mock.get("/user").mock(return_value=Response(500))
+        with pytest.raises(ServerError):
+            await api.get_user()
+
+@pytest.mark.asyncio
+async def test_api_max_retries_reached_generic(api, monkeypatch):
+    # To reach line 132 "Maximum retries exceeded"
+    # We need to simulate a case where while loop ends without raising or returning
+    # This is tricky because the loop only ends by raising or returning
+    # Looking at code: while retries > 0: ... retries -= 1 ...
+    # If it falls through, it raises.
+    # Let's mock a 429 that keeps repeating
+    monkeypatch.setattr(api, "MAX_RETRIES", 1)
+    async with respx.mock(base_url=BASE_URL) as respx_mock:
+        respx_mock.get("/user").mock(return_value=Response(429, headers={"Retry-After": "0"}))
+        with pytest.raises(RaindropError) as excinfo:
+            await api.get_user()
+        assert "Maximum retries exceeded" in str(excinfo.value)
+
+@pytest.mark.asyncio
+async def test_api_dry_run_with_payload():
+    # To cover line 64-65 we need a payload with something that looks like a token
+    # and a method that is POST/PUT/DELETE
+    api = RaindropAPI(MOCK_TOKEN, dry_run=True)
+    # We use a lower-level _request to avoid Pydantic validation of the empty response
+    res = await api._request("POST", "/raindrop", json={"title": "Test", "myToken": "secret"})
+    assert res["result"] is True
+
+@pytest.mark.asyncio
+async def test_api_404_hint(api):
+    async with respx.mock(base_url=BASE_URL) as respx_mock:
+        respx_mock.get("/raindrop/999").mock(return_value=Response(404, json={"errorMessage": "Not Found"}))
+        with pytest.raises(RaindropError) as excinfo:
+            await api.get_raindrop(999)
+        assert excinfo.value.status_code == 404
+
+
+
+================================================
+FILE: tests/test_batch_operations.py
+================================================
+import pytest
+import respx
+import json
+from httpx import Response
+from raindrip.api import RaindropAPI
+from raindrip.models import RaindropUpdate
+
+# Mock Data
+MOCK_TOKEN = "test-token"
+BASE_URL = "https://api.raindrop.io/rest/v1"
+
+@pytest.fixture
+def api():
+    return RaindropAPI(MOCK_TOKEN)
+
+@pytest.mark.asyncio
+async def test_batch_update(api):
+    async with respx.mock(base_url=BASE_URL) as respx_mock:
+        put_route = respx_mock.put("/raindrops/0").mock(
+            return_value=Response(200, json={"result": True})
+        )
+        
+        update = RaindropUpdate(tags=["batch"])
+        success = await api.batch_update_raindrops(0, [1, 2], update)
+        assert success is True
+        
+        # Verify payload
+        payload = json.loads(put_route.calls.last.request.content)
+        assert payload == {"tags": ["batch"], "ids": [1, 2]}
+
+@pytest.mark.asyncio
+async def test_batch_delete(api):
+    async with respx.mock(base_url=BASE_URL) as respx_mock:
+        delete_route = respx_mock.delete("/raindrops/0").mock(
+            return_value=Response(200, json={"result": True})
+        )
+        
+        success = await api.batch_delete_raindrops(0, [1, 2])
+        assert success is True
+        
+        # Verify payload
+        payload = json.loads(delete_route.calls.last.request.content)
+        assert payload == {"ids": [1, 2]}
+
+
+
+================================================
+FILE: tests/test_cli.py
+================================================
+import json
+import pytest
+from typer.testing import CliRunner
+import respx
+from httpx import Response
+from raindrip.main import app
+from raindrip.config import Config, save_config
+
+runner = CliRunner()
+BASE_URL = "https://api.raindrop.io/rest/v1"
+
+@pytest.fixture(autouse=True)
+def mock_config(tmp_path, monkeypatch):
+    # Mock CONFIG_DIR and CONFIG_FILE to use a temporary directory
+    config_dir = tmp_path / ".config" / "raindrip"
+    config_file = config_dir / "config.json"
+    
+    monkeypatch.setattr("raindrip.config.CONFIG_DIR", config_dir)
+    monkeypatch.setattr("raindrip.config.CONFIG_FILE", config_file)
+    
+    # Save a mock token
+    save_config(Config(token="test-token"))
+
+def test_whoami_json():
+    mock_user = {"fullName": "Test User", "_id": 12345}
+    with respx.mock(base_url=BASE_URL) as respx_mock:
+        respx_mock.get("/user").mock(
+            return_value=Response(200, json={"user": mock_user})
+        )
+        
+        result = runner.invoke(app, ["--format", "json", "whoami"])
+        assert result.exit_code == 0
+        data = json.loads(result.stdout)
+        assert data["fullName"] == "Test User"
+
+def test_context_toon():
+    # We need to mock multiple calls for context
+    with respx.mock(base_url=BASE_URL) as respx_mock:
+        respx_mock.get("/user").mock(
+            return_value=Response(200, json={"user": {"fullName": "Test User", "_id": 1}})
+        )
+        respx_mock.get("/user/stats").mock(
+            return_value=Response(200, json={"items": [{"_id": 0, "count": 100}]})
+        )
+        respx_mock.get("/raindrops/0").mock(
+            return_value=Response(200, json={"items": [{"_id": 123, "title": "Recent", "link": "http://test.com"}]})
+        )
+        respx_mock.get("/collections/all").mock(
+            return_value=Response(200, json={"items": [{"_id": 456, "title": "Col", "count": 5}]})
+        )
+        
+        result = runner.invoke(app, ["--format", "toon", "context"])
+        if result.exit_code != 0:
+            print(result.output)
+        assert result.exit_code == 0
+        # TOON output is tabular, check for keywords
+        assert "Test User" in result.stdout
+        assert "total_bookmarks" in result.stdout
+        assert "Recent" in result.stdout
+
+def test_search_json():
+    mock_results = {
+        "items": [
+            {"_id": 1, "title": "Result 1", "link": "http://r1.com", "tags": ["t1"]},
+        ]
+    }
+    with respx.mock(base_url=BASE_URL) as respx_mock:
+        respx_mock.get("/raindrops/0").mock(
+            return_value=Response(200, json=mock_results)
+        )
+        
+        result = runner.invoke(app, ["--format", "json", "search", "test"])
+        assert result.exit_code == 0
+        data = json.loads(result.stdout)
+        assert data["items"][0]["title"] == "Result 1"
+
+def test_search_pretty():
+    mock_results = {
+        "items": [
+            {"_id": 1, "title": "Result 1", "link": "http://r1.com", "tags": ["t1"]},
+            {"_id": 2, "title": "Result 2", "link": "http://r2.com", "tags": []}
+        ]
+    }
+    with respx.mock(base_url=BASE_URL) as respx_mock:
+        respx_mock.get("/raindrops/0").mock(
+            return_value=Response(200, json=mock_results)
+        )
+        
+        result = runner.invoke(app, ["search", "test", "--pretty"])
+        assert result.exit_code == 0
+        assert "Result 1" in result.stdout
+        assert "Result 2" in result.stdout
+        assert "ID" in result.stdout # Table header
+
+def test_schema():
+    result = runner.invoke(app, ["schema"])
+    assert result.exit_code == 0
+    data = json.loads(result.stdout)
+    assert "schemas" in data
+    assert "usage_examples" in data
+
+def test_structure_json():
+    mock_collections = {"items": [{"_id": 1, "title": "Col 1", "count": 10}]}
+    mock_tags = {"items": [{"_id": "tag1", "count": 5}]}
+    with respx.mock(base_url=BASE_URL) as respx_mock:
+        respx_mock.get("/collections/all").mock(return_value=Response(200, json=mock_collections))
+        respx_mock.get("/tags").mock(return_value=Response(200, json=mock_tags))
+        
+        result = runner.invoke(app, ["--format", "json", "structure"])
+        assert result.exit_code == 0
+        data = json.loads(result.stdout)
+        assert len(data["collections"]) == 1
+        assert data["collections"][0]["title"] == "Col 1"
+        assert "tag1" in data["tags"]
+
+def test_add_bookmark():
+    mock_item = {"item": {"_id": 123, "title": "Added", "link": "http://added.com"}}
+    with respx.mock(base_url=BASE_URL) as respx_mock:
+        respx_mock.post("/raindrop").mock(return_value=Response(200, json=mock_item))
+        
+        result = runner.invoke(app, ["--format", "json", "add", "http://added.com", "--title", "Added"])
+        assert result.exit_code == 0
+        data = json.loads(result.stdout)
+        assert data["id"] == 123
+
+def test_delete_bookmark():
+    with respx.mock(base_url=BASE_URL) as respx_mock:
+        respx_mock.delete("/raindrop/123").mock(return_value=Response(200, json={"result": True}))
+        
+        result = runner.invoke(app, ["--format", "json", "delete", "123"])
+        assert result.exit_code == 0
+        data = json.loads(result.stdout)
+        assert data["success"] is True
+
+def test_sort_bookmark():
+    mock_item = {"item": {"_id": 123, "title": "Python coding", "link": "http://py.com"}}
+    mock_collections = {
+        "items": [
+            {"_id": 1, "title": "Python", "count": 10},
+            {"_id": 2, "title": "Cooking", "count": 5}
+        ]
+    }
+    with respx.mock(base_url=BASE_URL) as respx_mock:
+        respx_mock.get("/raindrop/123").mock(return_value=Response(200, json=mock_item))
+        respx_mock.get("/collections/all").mock(return_value=Response(200, json=mock_collections))
+        
+        result = runner.invoke(app, ["--format", "json", "sort", "123"])
+        assert result.exit_code == 0
+        data = json.loads(result.stdout)
+        assert data["bookmark"]["id"] == 123
+        assert len(data["suggested_collections"]) > 0
+        assert data["suggested_collections"][0]["title"] == "Python"
+
+def test_cli_error_hint():
+    with respx.mock(base_url=BASE_URL) as respx_mock:
+        respx_mock.get("/user").mock(
+            return_value=Response(401, json={"errorMessage": "Unauthorized"})
+        )
+        
+        result = runner.invoke(app, ["whoami"])
+        assert result.exit_code == 1
+        data = json.loads(result.stdout)
+        assert "Authentication failed" in data["hint"]
+
+def test_collection_create():
+    mock_item = {"item": {"_id": 123, "title": "New Col"}}
+    with respx.mock(base_url=BASE_URL) as respx_mock:
+        respx_mock.post("/collection").mock(return_value=Response(200, json=mock_item))
+        result = runner.invoke(app, ["--format", "json", "collection", "create", "New Col"])
+        assert result.exit_code == 0
+        assert json.loads(result.stdout)["id"] == 123
+
+def test_collection_update():
+    mock_item = {"item": {"_id": 123, "title": "Updated"}}
+    with respx.mock(base_url=BASE_URL) as respx_mock:
+        respx_mock.put("/collection/123").mock(return_value=Response(200, json=mock_item))
+        result = runner.invoke(app, ["--format", "json", "collection", "update", "123", '{"title": "Updated"}'])
+        assert result.exit_code == 0
+        assert json.loads(result.stdout)["title"] == "Updated"
+
+def test_collection_delete():
+    with respx.mock(base_url=BASE_URL) as respx_mock:
+        respx_mock.delete("/collection/123").mock(return_value=Response(200, json={"result": True}))
+        result = runner.invoke(app, ["--format", "json", "collection", "delete", "123"])
+        assert result.exit_code == 0
+        assert json.loads(result.stdout)["success"] is True
+
+def test_collection_get():
+    mock_item = {"item": {"_id": 123, "title": "Get Col"}}
+    with respx.mock(base_url=BASE_URL) as respx_mock:
+        respx_mock.get("/collection/123").mock(return_value=Response(200, json=mock_item))
+        result = runner.invoke(app, ["--format", "json", "collection", "get", "123"])
+        assert result.exit_code == 0
+        assert json.loads(result.stdout)["id"] == 123
+
+def test_tag_rename():
+    with respx.mock(base_url=BASE_URL) as respx_mock:
+        respx_mock.put("/tags/0").mock(return_value=Response(200, json={"result": True}))
+        result = runner.invoke(app, ["--format", "json", "tag", "rename", "old", "new"])
+        assert result.exit_code == 0
+        assert json.loads(result.stdout)["success"] is True
+
+def test_batch_update():
+    with respx.mock(base_url=BASE_URL) as respx_mock:
+        respx_mock.put("/raindrops/0").mock(return_value=Response(200, json={"result": True}))
+        result = runner.invoke(app, ["--format", "json", "batch", "update", "--ids", "1,2", '{"title": "Batch"}'])
+        assert result.exit_code == 0
+        assert json.loads(result.stdout)["success"] is True
+
+def test_batch_delete():
+    with respx.mock(base_url=BASE_URL) as respx_mock:
+        respx_mock.delete("/raindrops/0").mock(return_value=Response(200, json={"result": True}))
+        result = runner.invoke(app, ["--format", "json", "batch", "delete", "--ids", "1,2"])
+        assert result.exit_code == 0
+        assert json.loads(result.stdout)["success"] is True
+
+def test_logout(monkeypatch, tmp_path):
+    config_file = tmp_path / "config.json"
+    monkeypatch.setattr("raindrip.config.CONFIG_FILE", config_file)
+    save_config(Config(token="test"))
+    assert config_file.exists()
+    
+    result = runner.invoke(app, ["logout"])
+    assert result.exit_code == 0
+    assert not config_file.exists()
+
+def test_get_raindrop():
+    mock_item = {"item": {"_id": 123, "title": "Single", "link": "http://one.com"}}
+    with respx.mock(base_url=BASE_URL) as respx_mock:
+        respx_mock.get("/raindrop/123").mock(return_value=Response(200, json=mock_item))
+        result = runner.invoke(app, ["--format", "json", "get", "123"])
+        assert result.exit_code == 0
+        assert json.loads(result.stdout)["id"] == 123
+
+def test_suggest_raindrop():
+    mock_data = {"item": {"tags": ["suggested"]}}
+    with respx.mock(base_url=BASE_URL) as respx_mock:
+        respx_mock.get("/raindrop/123/suggest").mock(return_value=Response(200, json=mock_data))
+        result = runner.invoke(app, ["--format", "json", "suggest", "123"])
+        assert result.exit_code == 0
+        assert "suggested" in json.loads(result.stdout)["tags"]
+
+def test_wayback():
+    snapshot = "http://archive.org/snapshot"
+    mock_resp = {"archived_snapshots": {"closest": {"url": snapshot, "available": True}}}
+    with respx.mock() as respx_mock:
+        respx_mock.get("https://archive.org/wayback/available").mock(return_value=Response(200, json=mock_resp))
+        result = runner.invoke(app, ["--format", "json", "wayback", "http://google.com"])
+        assert result.exit_code == 0
+        assert json.loads(result.stdout)["snapshot"] == snapshot
+
+def test_patch_raindrop():
+    mock_item = {"item": {"_id": 123, "title": "Patched", "link": "http://one.com"}}
+    with respx.mock(base_url=BASE_URL) as respx_mock:
+        respx_mock.put("/raindrop/123").mock(return_value=Response(200, json=mock_item))
+        result = runner.invoke(app, ["--format", "json", "patch", "123", '{"title": "Patched"}'])
+        assert result.exit_code == 0
+        assert json.loads(result.stdout)["title"] == "Patched"
+
+def test_collection_clean():
+    with respx.mock(base_url=BASE_URL) as respx_mock:
+        respx_mock.put("/collections/clean").mock(return_value=Response(200, json={"count": 5}))
+        result = runner.invoke(app, ["--format", "json", "collection", "clean"])
+        assert result.exit_code == 0
+        assert json.loads(result.stdout)["removed_count"] == 5
+
+def test_collection_empty_trash():
+    with respx.mock(base_url=BASE_URL) as respx_mock:
+        respx_mock.delete("/collection/-99").mock(return_value=Response(200, json={"result": True}))
+        result = runner.invoke(app, ["--format", "json", "collection", "empty-trash"])
+        assert result.exit_code == 0
+        assert json.loads(result.stdout)["success"] is True
+
+def test_collection_reorder():
+    with respx.mock(base_url=BASE_URL) as respx_mock:
+        respx_mock.put("/collections").mock(return_value=Response(200, json={"result": True}))
+        result = runner.invoke(app, ["--format", "json", "collection", "reorder", "title"])
+        assert result.exit_code == 0
+        assert json.loads(result.stdout)["success"] is True
+
+def test_collection_expand_all():
+    with respx.mock(base_url=BASE_URL) as respx_mock:
+        respx_mock.put("/collections").mock(return_value=Response(200, json={"result": True}))
+        result = runner.invoke(app, ["--format", "json", "collection", "expand-all", "True"])
+        assert result.exit_code == 0
+        assert json.loads(result.stdout)["success"] is True
+
+def test_collection_merge():
+    with respx.mock(base_url=BASE_URL) as respx_mock:
+        respx_mock.put("/collections/merge").mock(return_value=Response(200, json={"result": True}))
+        result = runner.invoke(app, ["--format", "json", "collection", "merge", "1,2", "3"])
+        assert result.exit_code == 0
+        assert json.loads(result.stdout)["success"] is True
+
+def test_collection_delete_multiple():
+    with respx.mock(base_url=BASE_URL) as respx_mock:
+        respx_mock.delete("/collections").mock(return_value=Response(200, json={"result": True}))
+        result = runner.invoke(app, ["--format", "json", "collection", "delete-multiple", "1,2"])
+        assert result.exit_code == 0
+        assert json.loads(result.stdout)["success"] is True
+
+def test_tag_delete():
+    with respx.mock(base_url=BASE_URL) as respx_mock:
+        respx_mock.delete("/tags/0").mock(return_value=Response(200, json={"result": True}))
+        result = runner.invoke(app, ["--format", "json", "tag", "delete", "tag1"])
+        assert result.exit_code == 0
+        assert json.loads(result.stdout)["success"] is True
+
+def test_collection_set_icon(tmp_path):
+    icon_resp = b"fake-icon-content"
+    mock_item = {"item": {"_id": 123, "title": "Updated Icon"}}
+    with respx.mock(base_url=BASE_URL) as respx_mock:
+        respx_mock.get("/collections/covers/robot").mock(return_value=Response(200, json={"items": [{"icons": [{"png": "http://icon.com/1.png"}]}]}))
+        # Mock external download
+        respx_mock.get("http://icon.com/1.png").mock(return_value=Response(200, content=icon_resp))
+        respx_mock.put("/collection/123/cover").mock(return_value=Response(200, json=mock_item))
+        
+        result = runner.invoke(app, ["--format", "json", "collection", "set-icon", "123", "robot"])
+        assert result.exit_code == 0
+        assert json.loads(result.stdout)["id"] == 123
+
+def test_collection_cover_local(tmp_path):
+    cover_file = tmp_path / "cover.png"
+    cover_file.write_bytes(b"fake-png")
+    mock_item = {"item": {"_id": 123, "title": "Updated Cover"}}
+    with respx.mock(base_url=BASE_URL) as respx_mock:
+        respx_mock.put("/collection/123/cover").mock(return_value=Response(200, json=mock_item))
+        
+        result = runner.invoke(app, ["--format", "json", "collection", "cover", "123", str(cover_file)])
+        assert result.exit_code == 0
+        assert json.loads(result.stdout)["id"] == 123
+
+def test_login():
+    mock_user = {"fullName": "Login User", "_id": 1}
+    with respx.mock(base_url=BASE_URL) as respx_mock:
+        respx_mock.get("/user").mock(return_value=Response(200, json={"user": mock_user}))
+        result = runner.invoke(app, ["login"], input="new-token\n")
+        assert result.exit_code == 0
+        assert "Success" in result.stdout
+
+def test_collection_cover_url(tmp_path):
+    mock_item = {"item": {"_id": 123, "title": "Updated Cover"}}
+    with respx.mock(base_url=BASE_URL) as respx_mock:
+        respx_mock.get("http://example.com/icon.png").mock(return_value=Response(200, content=b"png-data"))
+        respx_mock.put("/collection/123/cover").mock(return_value=Response(200, json=mock_item))
+        
+        result = runner.invoke(app, ["--format", "json", "collection", "cover", "123", "http://example.com/icon.png"])
+        assert result.exit_code == 0
+        assert json.loads(result.stdout)["id"] == 123
+
+def test_collection_set_icon_no_results():
+    with respx.mock(base_url=BASE_URL) as respx_mock:
+        respx_mock.get("/collections/covers/nothing").mock(return_value=Response(200, json={"items": []}))
+        result = runner.invoke(app, ["collection", "set-icon", "123", "nothing"])
+        assert result.exit_code == 0
+        assert "No icons found" in result.stdout
+
+def test_invalid_json_input():
+    result = runner.invoke(app, ["patch", "123", "{invalid-json"])
+    assert result.exit_code == 1
+    assert "Invalid JSON" in result.stdout
+
+def test_batch_delete_invalid_ids():
+    result = runner.invoke(app, ["batch", "delete", "--ids", "not-an-int"])
+    assert result.exit_code == 1
+    assert "Invalid IDs" in result.stdout
+
+def test_output_data_list_models_json():
+    # To cover OutputFormat.json with a list of models
+    mock_collections = {"items": [{"_id": 1, "title": "Col 1", "count": 10}]}
+    with respx.mock(base_url=BASE_URL) as respx_mock:
+        respx_mock.get("/collections/all").mock(return_value=Response(200, json=mock_collections))
+        respx_mock.get("/tags").mock(return_value=Response(200, json={"items": []}))
+        
+        result = runner.invoke(app, ["--format", "json", "structure"])
+        assert result.exit_code == 0
+        data = json.loads(result.stdout)
+        assert len(data["collections"]) == 1
+        assert "id" in data["collections"][0]
+
+def test_output_data_list_models_json():
+
+    # This triggers the dumped = [item.model_dump() ... else item] line
+    # when data is a list of strings
+    with respx.mock(base_url=BASE_URL) as respx_mock:
+        respx_mock.get("/collections/all").mock(return_value=Response(200, json={"items": []}))
+        respx_mock.get("/tags").mock(return_value=Response(200, json={"items": [{"_id": "t1"}]}))
+        result = runner.invoke(app, ["--format", "json", "structure"])
+        assert result.exit_code == 0
+        data = json.loads(result.stdout)
+        assert data["tags"] == ["t1"]
+
+def test_output_data_single_model_json():
+    # To cover line 51: dumped = data.model_dump()
+    # We can use the 'get' command which returns a single Raindrop model
+    mock_item = {"item": {"_id": 123, "title": "Single", "link": "http://one.com"}}
+    with respx.mock(base_url=BASE_URL) as respx_mock:
+        respx_mock.get("/raindrop/123").mock(return_value=Response(200, json=mock_item))
+        result = runner.invoke(app, ["--format", "json", "get", "123"])
+        assert result.exit_code == 0
+        data = json.loads(result.stdout)
+        assert data["id"] == 123
+        assert "title" in data
+
+def test_cli_404_hint():
+    with respx.mock(base_url=BASE_URL) as respx_mock:
+        respx_mock.get("/raindrop/999").mock(
+            return_value=Response(404, json={"errorMessage": "Not Found"})
+        )
+        
+        result = runner.invoke(app, ["get", "999"])
+        assert result.exit_code == 1
+        data = json.loads(result.stdout)
+        assert "requested resource was not found" in data["hint"]
+
+def test_unexpected_error():
+    # Force an exception by mocking something internal
+    with respx.mock(base_url=BASE_URL) as respx_mock:
+        respx_mock.get("/user").side_effect = Exception("Boom")
+        result = runner.invoke(app, ["whoami"])
+        assert result.exit_code == 1
+        assert "Unexpected error" in result.stdout
+
+def test_json_output_single_model():
+    mock_item = {"item": {"_id": 123, "title": "Single", "link": "http://one.com"}}
+    with respx.mock(base_url=BASE_URL) as respx_mock:
+        respx_mock.get("/raindrop/123").mock(return_value=Response(200, json=mock_item))
+        result = runner.invoke(app, ["--format", "json", "get", "123"])
+        assert result.exit_code == 0
+        # result.stdout should be valid JSON
+        data = json.loads(result.stdout)
+        assert data["id"] == 123
+
+def test_dry_run():
+    # Dry run should not make real requests for POST/PUT/DELETE
+    # But it still needs to load config
+    result = runner.invoke(app, ["--dry-run", "delete", "123"])
+    assert result.exit_code == 0
+    assert "success" in result.stdout
+
+def test_no_config(tmp_path, monkeypatch):
+    # Use a fresh empty directory
+    config_dir = tmp_path / "empty"
+    monkeypatch.setattr("raindrip.config.CONFIG_DIR", config_dir)
+    monkeypatch.setattr("raindrip.config.CONFIG_FILE", config_dir / "none.json")
+    
+    result = runner.invoke(app, ["whoami"])
+    assert result.exit_code == 1
+    assert "Not logged in" in result.stdout
+
+def test_malformed_config(tmp_path, monkeypatch):
+    config_dir = tmp_path / "malformed"
+    config_dir.mkdir()
+    config_file = config_dir / "config.json"
+    config_file.write_text("{malformed")
+    monkeypatch.setattr("raindrip.config.CONFIG_DIR", config_dir)
+    monkeypatch.setattr("raindrip.config.CONFIG_FILE", config_file)
+    
+    result = runner.invoke(app, ["whoami"])
+    assert result.exit_code == 1
+    assert "Not logged in" in result.stdout
+
+
+
+================================================
+FILE: tests/test_collection_management.py
+================================================
+import pytest
+import respx
+import json
+from httpx import Response
+from raindrip.api import RaindropAPI
+from raindrip.models import CollectionCreate, CollectionUpdate
+
+# Mock Data
+MOCK_TOKEN = "test-token"
+BASE_URL = "https://api.raindrop.io/rest/v1"
+
+@pytest.fixture
+def api():
+    return RaindropAPI(MOCK_TOKEN)
+
+@pytest.mark.asyncio
+async def test_create_collection(api):
+    mock_resp = {"item": {"_id": 100, "title": "New Col", "count": 0}}
+    new_col = CollectionCreate(title="New Col", public=True)
+    
+    async with respx.mock(base_url=BASE_URL) as respx_mock:
+        post_route = respx_mock.post("/collection").mock(return_value=Response(200, json=mock_resp))
+        
+        result = await api.create_collection(new_col)
+        assert result.id == 100
+        assert result.title == "New Col"
+        
+        # Verify payload
+        payload = json.loads(post_route.calls.last.request.content)
+        assert payload["title"] == "New Col"
+        assert payload["public"] is True
+
+@pytest.mark.asyncio
+async def test_update_collection(api):
+    mock_resp = {"item": {"_id": 100, "title": "Updated Col", "count": 0}}
+    update_data = CollectionUpdate(title="Updated Col")
+    
+    async with respx.mock(base_url=BASE_URL) as respx_mock:
+        put_route = respx_mock.put("/collection/100").mock(return_value=Response(200, json=mock_resp))
+        
+        result = await api.update_collection(100, update_data)
+        assert result.title == "Updated Col"
+        
+        # Verify only dirty fields sent
+        payload = json.loads(put_route.calls.last.request.content)
+        assert payload == {"title": "Updated Col"}
+
+@pytest.mark.asyncio
+async def test_delete_collection(api):
+    async with respx.mock(base_url=BASE_URL) as respx_mock:
+        respx_mock.delete("/collection/100").mock(return_value=Response(200, json={"result": True}))
+        success = await api.delete_collection(100)
+        assert success is True
+
+
+
+================================================
+FILE: tests/test_edge_cases.py
+================================================
+import pytest
+import respx
+import json
+from httpx import Response
+from raindrip.api import RaindropAPI, RaindropError
+
+# Mock Data
+MOCK_TOKEN = "test-token"
+BASE_URL = "https://api.raindrop.io/rest/v1"
+
+@pytest.fixture
+def api():
+    return RaindropAPI(MOCK_TOKEN)
+
+@pytest.mark.asyncio
+async def test_get_nonexistent_raindrop_404(api):
+    async with respx.mock(base_url=BASE_URL) as respx_mock:
+        respx_mock.get("/raindrop/999").mock(
+            return_value=Response(404, json={"errorMessage": "Not Found"})
+        )
+        with pytest.raises(RaindropError) as excinfo:
+            await api.get_raindrop(999)
+        assert excinfo.value.status_code == 404
+
+@pytest.mark.asyncio
+async def test_delete_forbidden_collection_403(api):
+    async with respx.mock(base_url=BASE_URL) as respx_mock:
+        respx_mock.delete("/collection/123").mock(
+            return_value=Response(403, json={"errorMessage": "Access Denied"})
+        )
+        with pytest.raises(RaindropError) as excinfo:
+            await api.delete_collection(123)
+        assert excinfo.value.status_code == 403
+
+@pytest.mark.asyncio
+async def test_search_no_results(api):
+    async with respx.mock(base_url=BASE_URL) as respx_mock:
+        respx_mock.get("/raindrops/0").mock(
+            return_value=Response(200, json={"items": []})
+        )
+        results = await api.search("query-with-no-results")
+        assert results == []
+
+@pytest.mark.asyncio
+async def test_add_with_special_characters(api):
+    special_title = "Title with 🚀 and <script>alert(1)</script>"
+    mock_resp = {"item": {"_id": 1, "link": "http://x.com", "title": special_title}}
+    
+    async with respx.mock(base_url=BASE_URL) as respx_mock:
+        respx_mock.post("/raindrop").mock(return_value=Response(200, json=mock_resp))
+        result = await api.add_raindrop("http://x.com", title=special_title)
+        assert result.title == special_title
+
+@pytest.mark.asyncio
+async def test_api_returns_malformed_json(api):
+    async with respx.mock(base_url=BASE_URL) as respx_mock:
+        # Simulate a 200 OK but with body that isn't JSON
+        respx_mock.get("/user").mock(return_value=Response(200, content="Not JSON"))
+        with pytest.raises(RaindropError) as excinfo:
+            await api.get_user()
+        assert "JSON" in str(excinfo.value)
+
+@pytest.mark.asyncio
+async def test_batch_delete_empty_list(api):
+    # Depending on API, this might error or just return result: true. 
+    # We test that our CLI handles the call.
+    async with respx.mock(base_url=BASE_URL) as respx_mock:
+        respx_mock.delete("/raindrops/0").mock(return_value=Response(200, json={"result": True}))
+        success = await api.batch_delete_raindrops(0, [])
+        assert success is True
+
+@pytest.mark.asyncio
+async def test_get_stats_empty_items(api):
+    async with respx.mock(base_url=BASE_URL) as respx_mock:
+        respx_mock.get("/user/stats").mock(return_value=Response(200, json={"items": []}))
+        stats = await api.get_stats()
+        assert stats == []
+
+
+
+================================================
+FILE: tests/test_hierarchy_and_icons.py
+================================================
+import pytest
+import respx
+import json
+from httpx import Response
+from raindrip.api import RaindropAPI
+from raindrip.models import Collection
+
+# Mock Data
+MOCK_TOKEN = "test-token"
+BASE_URL = "https://api.raindrop.io/rest/v1"
+
+@pytest.fixture
+def api():
+    return RaindropAPI(MOCK_TOKEN)
+
+@pytest.mark.asyncio
+async def test_get_root_collections(api):
+    mock_data = {"items": [{"_id": 1, "title": "Root"}]}
+    async with respx.mock(base_url=BASE_URL) as respx_mock:
+        respx_mock.get("/collections").mock(return_value=Response(200, json=mock_data))
+        cols = await api.get_root_collections()
+        assert len(cols) == 1
+        assert cols[0].id == 1
+
+@pytest.mark.asyncio
+async def test_get_child_collections(api):
+    mock_data = {"items": [{"_id": 2, "title": "Child", "parent": {"$id": 1}}]}
+    async with respx.mock(base_url=BASE_URL) as respx_mock:
+        respx_mock.get("/collections/childrens").mock(return_value=Response(200, json=mock_data))
+        cols = await api.get_child_collections()
+        assert len(cols) == 1
+        assert cols[0].parent["$id"] == 1
+
+@pytest.mark.asyncio
+async def test_search_cover(api):
+    mock_data = {
+        "items": [
+            {"icons": [{"png": "http://icon1.png"}]},
+            {"icons": [{"png": "http://icon2.png"}]}
+        ]
+    }
+    async with respx.mock(base_url=BASE_URL) as respx_mock:
+        respx_mock.get("/collections/covers/test").mock(return_value=Response(200, json=mock_data))
+        icons = await api.search_cover("test")
+        assert icons == ["http://icon1.png", "http://icon2.png"]
+
+@pytest.mark.asyncio
+async def test_merge_collections(api):
+    async with respx.mock(base_url=BASE_URL) as respx_mock:
+        put_route = respx_mock.put("/collections/merge").mock(return_value=Response(200, json={"result": True}))
+        success = await api.merge_collections([1, 2], 3)
+        assert success is True
+        payload = json.loads(put_route.calls.last.request.content)
+        assert payload == {"ids": [1, 2], "to": 3}
+
+@pytest.mark.asyncio
+async def test_clean_empty_collections(api):
+    async with respx.mock(base_url=BASE_URL) as respx_mock:
+        respx_mock.put("/collections/clean").mock(return_value=Response(200, json={"result": True, "count": 5}))
+        count = await api.clean_empty_collections()
+        assert count == 5
+
+@pytest.mark.asyncio
+async def test_empty_trash(api):
+    async with respx.mock(base_url=BASE_URL) as respx_mock:
+        respx_mock.delete("/collection/-99").mock(return_value=Response(200, json={"result": True}))
+        success = await api.empty_trash()
+        assert success is True
+
+
+
+================================================
+FILE: tests/test_tag_management.py
+================================================
+import pytest
+import respx
+import json
+from httpx import Response
+from raindrip.api import RaindropAPI
+
+# Mock Data
+MOCK_TOKEN = "test-token"
+BASE_URL = "https://api.raindrop.io/rest/v1"
+
+@pytest.fixture
+def api():
+    return RaindropAPI(MOCK_TOKEN)
+
+@pytest.mark.asyncio
+async def test_delete_tags(api):
+    async with respx.mock(base_url=BASE_URL) as respx_mock:
+        delete_route = respx_mock.delete("/tags/0").mock(
+            return_value=Response(200, json={"result": True})
+        )
+        
+        success = await api.delete_tags(["old1", "old2"])
+        assert success is True
+        
+        # Verify payload
+        payload = json.loads(delete_route.calls.last.request.content)
+        assert payload == {"tags": ["old1", "old2"]}
+
+@pytest.mark.asyncio
+async def test_rename_tag(api):
+    async with respx.mock(base_url=BASE_URL) as respx_mock:
+        put_route = respx_mock.put("/tags/0").mock(
+            return_value=Response(200, json={"result": True})
+        )
+        
+        success = await api.rename_tag("old", "new")
+        assert success is True
+        
+        # Verify payload
+        payload = json.loads(put_route.calls.last.request.content)
+        assert payload == {"replace": "new", "tags": ["old"]}
+
+
+
+================================================
+FILE: .github/workflows/release.yml
+================================================
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          
+      - name: Build package
+        run: uv build
+        
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*.whl
+            dist/*.tar.gz
+          generate_release_notes: true
+          fail_on_unmatched_files: false
+          draft: false
+          prerelease: false
+
+
+
+================================================
+FILE: .github/workflows/test.yml
+================================================
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: ".python-version"
+          
+      - name: Install dependencies
+        run: uv sync --all-groups
+          
+      - name: Run Tests
+        run: uv run pytest tests/
+
+
